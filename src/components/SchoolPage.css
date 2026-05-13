@@ -1,0 +1,139 @@
+.school-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+  gap: 24px;
+}
+
+.school-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.event-list {
+  display: grid;
+  gap: 14px;
+}
+
+.event-row {
+  display: grid;
+  grid-template-columns: 78px 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 20px;
+  background: var(--surface-2);
+}
+
+.event-row h3 {
+  margin: 0;
+}
+
+.date-tile {
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  min-height: 68px;
+  border-radius: 18px;
+  background: rgba(31, 60, 22, 0.1);
+  color: var(--accent);
+}
+
+.date-tile span {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.compact-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-self: start;
+}
+
+.compact-panel h2,
+.compact-panel p {
+  margin: 0;
+}
+
+.prayer-board {
+  display: grid;
+  gap: 14px;
+}
+
+.prayer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.prayer-row.active {
+  background: #233612;
+  color: #f6f7e5;
+}
+
+.settings-panel {
+  display: grid;
+  gap: 14px;
+  max-width: 860px;
+}
+
+.setting-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+  padding: 18px;
+  border-radius: 20px;
+  background: var(--surface-2);
+}
+
+.setting-row span {
+  display: grid;
+  gap: 4px;
+}
+
+.setting-row small {
+  color: var(--muted-2);
+}
+
+.setting-row input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+}
+
+.setting-row select {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 10px 12px;
+  font: inherit;
+}
+
+@media (max-width: 900px) {
+  .school-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .event-row,
+  .setting-row {
+    grid-template-columns: 1fr;
+  }
+}

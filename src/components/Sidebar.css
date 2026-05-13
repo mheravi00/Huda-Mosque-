@@ -1,0 +1,63 @@
+.sidebar {
+  background: #24351a;
+  color: #f5f2e8;
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.brand {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+.brand-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: #e7ebd5;
+  color: #24351a;
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.brand-title {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+  opacity: 0.9;
+}
+
+.brand-subtitle {
+  margin: 0;
+  opacity: 0.75;
+  font-size: 0.85rem;
+}
+
+.nav-link {
+  width: 100%;
+  margin-bottom: 10px;
+  text-align: left;
+  background: transparent;
+  color: #d9e1ca;
+  font-weight: 600;
+}
+
+.nav-link.active {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.menu,
+.school-menu {
+  display: flex;
+  flex-direction: column;
+}
+
+.school-menu {
+  gap: 8px;
+}
