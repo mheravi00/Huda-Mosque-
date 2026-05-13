@@ -1,14 +1,6 @@
 import { Brain, Calendar, Mail, Star } from 'lucide-react';
+import PageSection from './PageSection.jsx';
 import './HomePage.css';
-
-function PageSection({ title, children }) {
-  return (
-    <section className="panel">
-      <h2>{title}</h2>
-      {children}
-    </section>
-  );
-}
 
 function HomePage({ lessons, messages, subjects, prayerTimes, onNavigate }) {
   let unreadMessages = 0;

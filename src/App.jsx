@@ -5,7 +5,9 @@ import LessonsPage from './components/LessonsPage.jsx';
 import MessagingPage from './components/MessagingPage.jsx';
 import ReportsPage from './components/ReportsPage.jsx';
 import HifzPage from './components/HifzPage.jsx';
-import SchoolPage from './components/SchoolPage.jsx';
+import CalendarPage from './components/CalendarPage.jsx';
+import PrayerTimesPage from './components/PrayerTimesPage.jsx';
+import SettingsPage from './components/SettingsPage.jsx';
 import {
   calendarEvents,
   hifzSurahs,
@@ -158,15 +160,9 @@ function App() {
         {page === 'hifz' && (
           <HifzPage hifzSurahs={surahItems} onLogPractice={logPractice} onUpdateSurahNotes={updateSurahNotes} />
         )}
-        {['calendar', 'prayer-times', 'settings'].includes(page) && (
-          <SchoolPage
-            page={page}
-            events={calendarEvents}
-            prayerTimes={prayerTimes}
-            onNavigate={changePage}
-            onSave={showToast}
-          />
-        )}
+        {page === 'calendar' && <CalendarPage events={calendarEvents} onNavigate={changePage} />}
+        {page === 'prayer-times' && <PrayerTimesPage prayerTimes={prayerTimes} />}
+        {page === 'settings' && <SettingsPage onSave={showToast} />}
       </main>
     </div>
   );
