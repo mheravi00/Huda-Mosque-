@@ -37,8 +37,8 @@ Fill in your values:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SECRET_KEY=
 RESEND_API_KEY=
 EMAIL_FROM=
 TWILIO_ACCOUNT_SID=
@@ -46,7 +46,7 @@ TWILIO_AUTH_TOKEN=
 TWILIO_PHONE_NUMBER=
 ```
 
-Never expose the service role key or Twilio token in the browser.
+Never expose the secret key or Twilio token in the browser.
 
 ## Supabase setup
 
