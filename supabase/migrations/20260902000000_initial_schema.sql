@@ -156,6 +156,19 @@ create table if not exists public.assessments (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.assessment_results (
+  id uuid primary key default gen_random_uuid(),
+  assessment_id uuid not null references public.assessments(id) on delete cascade,
+  student_id uuid not null references public.students(id) on delete cascade,
+  score numeric(5,2),
+  grade text,
+  teacher_comment text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (assessment_id, student_id),
+  check (score is null or score >= 0)
+);
+
 create table if not exists public.student_notes (
   id uuid primary key default gen_random_uuid(),
   student_id uuid not null references public.students(id) on delete cascade,
@@ -319,67 +332,13 @@ create index if not exists idx_reports_student_id on public.student_reports(stud
 create index if not exists idx_reports_report_period on public.student_reports(report_period);
 create index if not exists idx_notifications_user_id on public.notifications(user_id);
 create index if not exists idx_calendar_events_start_time on public.calendar_events(start_time);
-
-alter table public.profiles enable row level security;
-alter table public.guardians enable row level security;
-alter table public.students enable row level security;
-alter table public.student_guardians enable row level security;
-alter table public.teachers enable row level security;
-alter table public.subjects enable row level security;
-alter table public.classes enable row level security;
-alter table public.class_teachers enable row level security;
-alter table public.class_students enable row level security;
-alter table public.attendance enable row level security;
-alter table public.homework enable row level security;
-alter table public.homework_submissions enable row level security;
-alter table public.assessments enable row level security;
-alter table public.student_notes enable row level security;
-alter table public.report_templates enable row level security;
-alter table public.report_template_sections enable row level security;
-alter table public.report_requests enable row level security;
-alter table public.student_reports enable row level security;
-alter table public.report_sections enable row level security;
-alter table public.messages enable row level security;
-alter table public.message_recipients enable row level security;
-alter table public.notifications enable row level security;
-alter table public.calendar_events enable row level security;
-alter table public.communication_logs enable row level security;
-alter table public.audit_logs enable row level security;
-alter table public.settings enable row level security;
-
-create policy "profiles_are_readable_by_admins" on public.profiles for select using (true);
-create policy "profile_self_access" on public.profiles for select using (auth_user_id = auth.uid());
-create policy "admin_manage_profiles" on public.profiles for all using (true) with check (true);
-
-create policy "admin_manage_guardians" on public.guardians for all using (true) with check (true);
-create policy "admin_manage_students" on public.students for all using (true) with check (true);
-create policy "admin_manage_classes" on public.classes for all using (true) with check (true);
-create policy "admin_manage_reports" on public.student_reports for all using (true) with check (true);
-create policy "teacher_access_assigned_data" on public.attendance for select using (true);
-create policy "teacher_manage_assigned_attendance" on public.attendance for update using (true) with check (true);
-
-create or replace function public.set_updated_at()
-returns trigger as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$ language plpgsql;
-
-create trigger trg_profiles_updated_at before update on public.profiles for each row execute function public.set_updated_at();
-create trigger trg_guardians_updated_at before update on public.guardians for each row execute function public.set_updated_at();
-create trigger trg_students_updated_at before update on public.students for each row execute function public.set_updated_at();
-create trigger trg_teachers_updated_at before update on public.teachers for each row execute function public.set_updated_at();
-create trigger trg_subjects_updated_at before update on public.subjects for each row execute function public.set_updated_at();
-create trigger trg_classes_updated_at before update on public.classes for each row execute function public.set_updated_at();
-create trigger trg_attendance_updated_at before update on public.attendance for each row execute function public.set_updated_at();
-create trigger trg_homework_updated_at before update on public.homework for each row execute function public.set_updated_at();
-create trigger trg_homework_submissions_updated_at before update on public.homework_submissions for each row execute function public.set_updated_at();
-create trigger trg_assessments_updated_at before update on public.assessments for each row execute function public.set_updated_at();
-create trigger trg_report_templates_updated_at before update on public.report_templates for each row execute function public.set_updated_at();
-create trigger trg_report_requests_updated_at before update on public.report_requests for each row execute function public.set_updated_at();
-create trigger trg_student_reports_updated_at before update on public.student_reports for each row execute function public.set_updated_at();
-create trigger trg_messages_updated_at before update on public.messages for each row execute function public.set_updated_at();
-create trigger trg_notifications_updated_at before update on public.notifications for each row execute function public.set_updated_at();
-create trigger trg_calendar_events_updated_at before update on public.calendar_events for each row execute function public.set_updated_at();
-create trigger trg_settings_updated_at before update on public.settings for each row execute function public.set_updated_at();
+create index if not exists idx_student_guardians_student_id on public.student_guardians(student_id);
+create index if not exists idx_student_guardians_guardian_id on public.student_guardians(guardian_id);
+create index if not exists idx_class_teachers_teacher_id on public.class_teachers(teacher_id);
+create index if not exists idx_class_students_student_id on public.class_students(student_id);
+create index if not exists idx_homework_submissions_student_id on public.homework_submissions(student_id);
+create index if not exists idx_assessments_class_id on public.assessments(class_id);
+create index if not exists idx_assessment_results_student_id on public.assessment_results(student_id);
+create index if not exists idx_message_recipients_recipient_id on public.message_recipients(recipient_id);
+create index if not exists idx_notifications_user_read on public.notifications(user_id, read_at);
+create index if not exists idx_audit_logs_user_created on public.audit_logs(user_id, created_at);

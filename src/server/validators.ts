@@ -31,3 +31,25 @@ export function ensureRole(value: unknown): 'admin' | 'teacher' {
 
   throw new Error('Role must be admin or teacher.');
 }
+
+export function ensureNotificationType(value: unknown): string {
+  const type = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  const allowed = ['info', 'success', 'warning', 'error', 'report', 'attendance', 'message'];
+
+  if (allowed.includes(type)) {
+    return type;
+  }
+
+  throw new Error('Notification type is invalid.');
+}
+
+export function ensureReportStatus(value: unknown): string {
+  const status = typeof value === 'string' ? value.trim() : '';
+  const allowed = ['Draft', 'Submitted', 'Under Review', 'Changes Requested', 'Approved', 'Sent'];
+
+  if (allowed.includes(status)) {
+    return status;
+  }
+
+  throw new Error('Report status is invalid.');
+}

@@ -1,5 +1,5 @@
 import { createSupabaseAdminClient, createSupabaseUserClient } from './auth';
-import { ensureDate, ensureRole, ensureUuid, requiredString } from './validators';
+import { ensureDate, ensureNotificationType, ensureUuid, requiredString } from './validators';
 
 export async function getProfileByAuthUserId(authUserId: string) {
   const supabase = createSupabaseAdminClient();
@@ -117,14 +117,14 @@ export async function createNotification(input: {
   ensureUuid(input.user_id, 'user_id');
   requiredString(input.title, 'title');
   requiredString(input.message, 'message');
-  ensureRole(input.type || 'info');
+  const notificationType = ensureNotificationType(input.type || 'info');
 
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase.from('notifications').insert({
     user_id: input.user_id,
     title: input.title,
     message: input.message,
-    type: input.type || 'info',
+    type: notificationType,
     link: input.link || null,
   }).select().single();
 
