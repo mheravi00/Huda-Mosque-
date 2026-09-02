@@ -1,12 +1,5 @@
-import { createSupabaseAdminClient } from './auth';
-
-export async function createSignedUrl(bucket: string, path: string) {
-  const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data;
-}
+import type{SupabaseClient}from'@supabase/supabase-js';import{ApiError,mapDatabaseError}from'./http';import{ensureUuid}from'./validators';
+export const privateBuckets=['student-photos','homework-files','report-pdfs','documents']as const;export type PrivateBucket=typeof privateBuckets[number];
+export function validateStorageTarget(bucket:unknown,path:unknown){if(typeof bucket!=='string'||!privateBuckets.includes(bucket as PrivateBucket))throw new ApiError(400,'VALIDATION_ERROR','Unsupported storage bucket.');if(typeof path!=='string'||path.length>500||path.includes('..')||path.startsWith('/'))throw new ApiError(400,'VALIDATION_ERROR','Invalid storage path.');const parts=path.split('/');if(parts.length<3||!['students','classes','reports'].includes(parts[0])||!parts[2])throw new ApiError(400,'VALIDATION_ERROR','Storage path must use an approved convention.');ensureUuid(parts[1],'storage owner');return{bucket:bucket as PrivateBucket,path}}
+export async function signedUrl(client:SupabaseClient,bucket:unknown,path:unknown,expires=60){const t=validateStorageTarget(bucket,path);const{data,error}=await client.storage.from(t.bucket).createSignedUrl(t.path,Math.min(Math.max(expires,30),300));if(error)mapDatabaseError(error);return data}
+export async function deleteObject(client:SupabaseClient,bucket:unknown,path:unknown){const t=validateStorageTarget(bucket,path);const{data,error}=await client.storage.from(t.bucket).remove([t.path]);if(error)mapDatabaseError(error);return data}

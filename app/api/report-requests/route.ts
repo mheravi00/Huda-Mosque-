@@ -1,0 +1,2 @@
+import{requireRole}from'@/server/auth';import{ok,route}from'@/server/http';import{mapDatabaseError}from'@/server/resource-utils';import{pagination,pageMeta}from'@/server/query';export const GET=route(async r=>{const c=await requireRole(r,['admin','teacher']),p=pagination(r);const{data,error,count}=await c.supabase.from('report_requests').select('*',{count:'exact'}).range(p.from,p.to);mapDatabaseError(error);return ok(data??[],200,{pagination:pageMeta(p.page,p.limit,count??0)})});
+export const dynamic='force-dynamic';

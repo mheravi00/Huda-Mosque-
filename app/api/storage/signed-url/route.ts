@@ -1,0 +1,1 @@
+import{requireRole}from'@/server/auth';import{jsonBody,ok,route}from'@/server/http';import{signedUrl}from'@/server/storage';export const POST=route(async r=>{const c=await requireRole(r,['admin','teacher']),b=await jsonBody(r);return ok(await signedUrl(c.supabase,b.bucket,b.path,typeof b.expires_in==='number'?b.expires_in:60))});

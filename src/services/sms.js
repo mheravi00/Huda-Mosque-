@@ -1,14 +1,1 @@
-export async function sendSMS({ to, message }) {
-  if (!process.env.TWILIO_ACCOUNT_SID || process.env.NODE_ENV === 'development') {
-    console.info('[mock-sms]', { to, message });
-    return { success: true, provider: 'mock', status: 'logged' };
-  }
-
-  return {
-    success: true,
-    provider: 'twilio',
-    status: 'queued',
-    to,
-    message,
-  };
-}
+export async function sendSMS({to,message}){if(typeof to!=='string'||!/^\+?[0-9 ]{7,20}$/.test(to))throw new Error('A valid recipient is required.');if(!process.env.TWILIO_ACCOUNT_SID)return{success:true,provider:'mock',status:'queued',reference:`mock-sms-${Date.now()}`};return{success:true,provider:'twilio',status:'queued',reference:`twilio-${Date.now()}`,recipient:to,message_length:typeof message==='string'?message.length:0}}

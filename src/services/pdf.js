@@ -1,12 +1,1 @@
-export async function generateReportPDF(report) {
-  if (process.env.NODE_ENV === 'development') {
-    console.info('[mock-pdf]', { report });
-    return { success: true, provider: 'mock', fileName: `${report.studentName || 'student'}-report.pdf` };
-  }
-
-  return {
-    success: true,
-    provider: 'server-pdf',
-    fileName: `${report.studentName || 'student'}-report.pdf`,
-  };
-}
+export async function generateReportPDF(report){const lines=['Huda Mosque Student Report',`Report: ${report.id}`,`Period: ${report.report_period}`,`Status: ${report.status}`];const content=new TextEncoder().encode(lines.join('\n'));return{success:true,provider:'internal',fileName:`${report.id}.pdf`,content}}

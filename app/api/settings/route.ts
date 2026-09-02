@@ -1,0 +1,2 @@
+import{requireAdmin}from'@/server/auth';import{ok,route}from'@/server/http';import{mapDatabaseError}from'@/server/resource-utils';const secretPattern=/(secret|password|token|private[_-]?key|database[_-]?url)/i;export const GET=route(async r=>{const c=await requireAdmin(r);const{data,error}=await c.supabase.from('settings').select('key,value').order('key');mapDatabaseError(error);return ok((data??[]).filter(x=>!secretPattern.test(x.key)))});
+export const dynamic='force-dynamic';

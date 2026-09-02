@@ -10,14 +10,19 @@ function requireIntegrationConfig() {
   if (!url || !publishableKey) {
     throw new Error('Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY to run RLS integration tests.');
   }
+
+  const hostname = new URL(url).hostname;
+  if (hostname === 'your-project-ref.supabase.co' || hostname.includes('placeholder')) {
+    throw new Error('NEXT_PUBLIC_SUPABASE_URL must point to the real Supabase project, not a placeholder hostname.');
+  }
 }
 
 test('unauthenticated users cannot read students', { skip: !integrationEnabled }, async () => {
   requireIntegrationConfig();
   const client = createClient(url, publishableKey, { auth: { persistSession: false } });
   const { data, error } = await client.from('students').select('id').limit(1);
-  assert.equal(data?.length || 0, 0);
-  assert.ok(error || data?.length === 0);
+  assert.ifError(error);
+  assert.deepEqual(data, []);
 });
 
 test('RLS integration suite requires explicit live Supabase configuration', { skip: integrationEnabled }, () => {

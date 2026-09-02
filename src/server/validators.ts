@@ -1,55 +1,11 @@
-export function ensureUuid(value: unknown, fieldName = 'id'): string {
-  if (typeof value !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
-    throw new Error(`${fieldName} must be a valid UUID.`);
-  }
-
-  return value;
-}
-
-export function requiredString(value: unknown, fieldName: string): string {
-  if (typeof value !== 'string' || value.trim() === '') {
-    throw new Error(`${fieldName} is required.`);
-  }
-
-  return value.trim();
-}
-
-export function ensureDate(value: unknown, fieldName: string): string {
-  if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
-    throw new Error(`${fieldName} must be a valid date.`);
-  }
-
-  return value;
-}
-
-export function ensureRole(value: unknown): 'admin' | 'teacher' {
-  const role = typeof value === 'string' ? value.trim().toLowerCase() : '';
-
-  if (role === 'admin' || role === 'teacher') {
-    return role;
-  }
-
-  throw new Error('Role must be admin or teacher.');
-}
-
-export function ensureNotificationType(value: unknown): string {
-  const type = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  const allowed = ['info', 'success', 'warning', 'error', 'report', 'attendance', 'message'];
-
-  if (allowed.includes(type)) {
-    return type;
-  }
-
-  throw new Error('Notification type is invalid.');
-}
-
-export function ensureReportStatus(value: unknown): string {
-  const status = typeof value === 'string' ? value.trim() : '';
-  const allowed = ['Draft', 'Submitted', 'Under Review', 'Changes Requested', 'Approved', 'Sent'];
-
-  if (allowed.includes(status)) {
-    return status;
-  }
-
-  throw new Error('Report status is invalid.');
-}
+import { ApiError } from './http';
+export function ensureUuid(value:unknown,fieldName='id'):string{if(typeof value!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value))throw new ApiError(400,'VALIDATION_ERROR',`${fieldName} must be a valid UUID.`);return value}
+export function requiredString(value:unknown,fieldName:string,max=500):string{if(typeof value!=='string'||!value.trim())throw new ApiError(400,'VALIDATION_ERROR',`${fieldName} is required.`);const r=value.trim();if(r.length>max)throw new ApiError(400,'VALIDATION_ERROR',`${fieldName} is too long.`);return r}
+export function optionalString(value:unknown,fieldName:string,max=500):string|null|undefined{if(value===undefined)return undefined;if(value===null||value==='')return null;if(typeof value!=='string')throw new ApiError(400,'VALIDATION_ERROR',`${fieldName} must be text.`);const r=value.trim();if(r.length>max)throw new ApiError(400,'VALIDATION_ERROR',`${fieldName} is too long.`);return r}
+export function ensureDate(value:unknown,fieldName:string):string{if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value)||Number.isNaN(Date.parse(`${value}T00:00:00Z`)))throw new ApiError(400,'VALIDATION_ERROR',`${fieldName} must be a valid YYYY-MM-DD date.`);return value}
+export function ensureDateTime(value:unknown,fieldName:string):string{if(typeof value!=='string'||Number.isNaN(Date.parse(value)))throw new ApiError(400,'VALIDATION_ERROR',`${fieldName} must be a valid date-time.`);return value}
+export function ensureEnum<T extends string>(value:unknown,field:string,allowed:readonly T[]):T{if(typeof value!=='string'||!allowed.includes(value as T))throw new ApiError(400,'VALIDATION_ERROR',`${field} is invalid.`);return value as T}
+export function ensureNumber(value:unknown,field:string,min?:number,max?:number):number{if(typeof value!=='number'||!Number.isFinite(value)||(min!==undefined&&value<min)||(max!==undefined&&value>max))throw new ApiError(400,'VALIDATION_ERROR',`${field} is invalid.`);return value}
+export const ensureRole=(v:unknown)=>ensureEnum(v,'role',['admin','teacher'] as const);export const ensureNotificationType=(v:unknown)=>ensureEnum(v,'type',['info','success','warning','error','report','attendance','message'] as const);export const ensureReportStatus=(v:unknown)=>ensureEnum(v,'status',['Draft','Submitted','Under Review','Changes Requested','Approved','Sent'] as const);export const ensureAttendanceStatus=(v:unknown)=>ensureEnum(v,'status',['Present','Absent','Late','Excused'] as const);export const ensureHomeworkStatus=(v:unknown)=>ensureEnum(v,'status',['Not completed','Completed','Late'] as const);
+export const reportTransitions:Record<string,readonly string[]>={Draft:['Submitted'],Submitted:['Under Review'],'Under Review':['Changes Requested','Approved'],'Changes Requested':['Submitted'],Approved:['Sent'],Sent:[]};
+export function ensureReportTransition(from:string,to:unknown){const target=ensureReportStatus(to);if(!reportTransitions[from]?.includes(target))throw new ApiError(409,'INVALID_STATUS_TRANSITION',`Report cannot transition from ${from} to ${target}.`);return target}

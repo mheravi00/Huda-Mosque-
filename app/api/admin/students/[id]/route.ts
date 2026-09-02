@@ -1,0 +1,1 @@
+import{itemHandlers}from'@/server/resources';import{students}from'@/server/payloads';const h=itemHandlers(students,true);export const GET=h.GET;export const PATCH=h.PATCH;export const DELETE=h.DELETE;

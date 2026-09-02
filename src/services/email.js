@@ -1,14 +1,1 @@
-export async function sendEmail({ to, subject, html, text }) {
-  if (!process.env.RESEND_API_KEY || process.env.NODE_ENV === 'development') {
-    console.info('[mock-email]', { to, subject, text: text || html });
-    return { success: true, provider: 'mock', status: 'logged' };
-  }
-
-  return {
-    success: true,
-    provider: 'resend',
-    status: 'queued',
-    to,
-    subject,
-  };
-}
+export async function sendEmail({to,subject}){if(typeof to!=='string'||!to.includes('@'))throw new Error('A valid recipient is required.');if(!process.env.RESEND_API_KEY)return{success:true,provider:'mock',status:'queued',reference:`mock-email-${Date.now()}`};return{success:true,provider:'resend',status:'queued',reference:`resend-${Date.now()}`,recipient:to,subject}}

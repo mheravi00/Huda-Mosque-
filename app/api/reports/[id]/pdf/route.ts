@@ -1,0 +1,1 @@
+import{requireRole}from'@/server/auth';import{ok,route}from'@/server/http';import{generateAndStoreReportPdf}from'@/server/report-pdf';export const POST=route(async(r,_:{params:{id:string}})=>ok(await generateAndStoreReportPdf(await requireRole(r,['admin','teacher']),_.params.id),201));
