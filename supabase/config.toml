@@ -1,0 +1,15 @@
+project_id = "huda-mosque-mvp"
+
+[api]
+port = 54321
+schemas = ["public", "storage", "auth"]
+extra_search_path = ["public"]
+
+[db]
+shadow_port = 54322
+
+[studio]
+port = 54323
+
+[storage]
+file_size_limit = "50MiB"
