@@ -1,6 +1,3 @@
--- Demo data seed for the madrasa management system.
--- Replace placeholder auth user IDs with actual Supabase Auth user IDs after creating user accounts.
-
 insert into public.profiles (id, auth_user_id, first_name, last_name, email, phone, role, active)
 values
   ('11111111-1111-4111-8111-111111111111', null, 'Admin', 'User', 'admin@example.com', '+123456789', 'admin', true),

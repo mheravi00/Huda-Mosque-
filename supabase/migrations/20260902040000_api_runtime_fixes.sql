@@ -1,4 +1,3 @@
--- Repair runtime defects discovered by the Phase 1C live API regression.
 alter table public.notifications
 add column if not exists updated_at timestamptz not null default now();
 

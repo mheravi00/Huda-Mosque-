@@ -1,5 +1,3 @@
--- Security hardening migration. All policies are relationship-based and deny by default.
-
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -10,7 +8,6 @@ begin
 end;
 $$;
 
--- A new signup is always a teacher. Only trusted server-side admin tooling may promote a profile.
 create or replace function public.handle_new_user_profile()
 returns trigger
 language plpgsql
@@ -143,7 +140,6 @@ alter table public.communication_logs enable row level security;
 alter table public.audit_logs enable row level security;
 alter table public.settings enable row level security;
 
--- Remove policies from earlier development migrations so permissive policies cannot remain active.
 do $$
 declare policy_record record;
 begin
@@ -164,13 +160,11 @@ begin
   end loop;
 end $$;
 
--- Profiles: users can see/update only themselves; admins manage all profiles.
 create policy profiles_self_select on public.profiles for select to authenticated using (auth_user_id = auth.uid() or public.is_admin());
 create policy profiles_self_update on public.profiles for update to authenticated using (auth_user_id = auth.uid() or public.is_admin()) with check ((auth_user_id = auth.uid() and role = public.current_profile_role()) or public.is_admin());
 create policy profiles_admin_insert on public.profiles for insert to authenticated with check (public.is_admin());
 create policy profiles_admin_delete on public.profiles for delete to authenticated using (public.is_admin());
 
--- Administrative records.
 create policy guardians_admin_all on public.guardians for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy students_admin_all on public.students for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy students_teacher_select on public.students for select to authenticated using (public.is_teacher_for_student(id));
@@ -195,7 +189,6 @@ create policy class_teachers_teacher_select on public.class_teachers for select 
 create policy class_students_admin_all on public.class_students for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy class_students_teacher_select on public.class_students for select to authenticated using (public.is_teacher_for_class(class_id));
 
--- Teacher operational access is tied to the assigned class/student relationship.
 create policy attendance_admin_all on public.attendance for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy attendance_teacher_all on public.attendance for all to authenticated using (public.is_teacher_for_class(class_id)) with check (public.is_teacher_for_class(class_id) and public.is_teacher_for_student(student_id));
 create policy homework_admin_all on public.homework for all to authenticated using (public.is_admin()) with check (public.is_admin());
@@ -209,7 +202,6 @@ create policy assessment_results_teacher_all on public.assessment_results for al
 create policy notes_admin_all on public.student_notes for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy notes_teacher_all on public.student_notes for all to authenticated using (public.is_teacher_for_student(student_id) and teacher_id = (select id from public.teachers where profile_id = public.current_profile_id())) with check (public.is_teacher_for_student(student_id) and teacher_id = (select id from public.teachers where profile_id = public.current_profile_id()));
 
--- Reports.
 create policy report_templates_admin_all on public.report_templates for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy report_template_sections_admin_all on public.report_template_sections for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy report_requests_admin_all on public.report_requests for all to authenticated using (public.is_admin()) with check (public.is_admin());
@@ -220,7 +212,6 @@ create policy student_reports_teacher_update on public.student_reports for updat
 create policy report_sections_admin_all on public.report_sections for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy report_sections_teacher_access on public.report_sections for select to authenticated using (exists (select 1 from public.student_reports r where r.id = report_id and r.teacher_id = public.current_profile_id()));
 
--- Internal communication and personal notifications.
 create policy messages_sender_or_admin on public.messages for all to authenticated using (public.is_admin() or sender_id = public.current_profile_id()) with check (public.is_admin() or sender_id = public.current_profile_id());
 create policy message_recipients_recipient_or_admin on public.message_recipients for select to authenticated using (public.is_admin() or recipient_id = public.current_profile_id());
 create policy message_recipients_sender_insert on public.message_recipients for insert to authenticated with check (public.is_admin() or exists (select 1 from public.messages m where m.id = message_id and m.sender_id = public.current_profile_id()));
@@ -233,7 +224,6 @@ create policy communication_logs_admin_all on public.communication_logs for all 
 create policy audit_logs_admin_select on public.audit_logs for select to authenticated using (public.is_admin());
 create policy settings_admin_all on public.settings for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
--- Audit history cannot be changed through the API.
 revoke insert, update, delete on public.audit_logs from anon, authenticated;
 
 create or replace function public.create_audit_entry()

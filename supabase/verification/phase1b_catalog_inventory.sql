@@ -1,6 +1,3 @@
--- Read-only Phase 1B catalog inventory. Safe to run in the Supabase SQL Editor.
--- It reports expected objects that are missing or configured incorrectly.
-
 with expected(name) as (
   values
     ('profiles'), ('guardians'), ('students'), ('student_guardians'),
@@ -170,8 +167,6 @@ left join storage.buckets b on b.id = e.name
 where b.id is null or b.public
 order by e.name;
 
--- This final result is informational and helps compare all live constraints
--- (PK, FK, UNIQUE and CHECK) with the initial migration without changing them.
 select n.nspname as table_schema,
        c.relname as table_name,
        con.conname as constraint_name,
@@ -190,8 +185,6 @@ where n.nspname = 'public'
   )
 order by table_name, constraint_name;
 
--- Final summary: every category should have issue_count = 0.
--- This query is read-only and mirrors the detailed checks above.
 select category, issue_count
 from (
   select 1 as sort_order,

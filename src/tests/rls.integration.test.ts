@@ -28,7 +28,3 @@ test('unauthenticated users cannot read students', { skip: !integrationEnabled }
 test('RLS integration suite requires explicit live Supabase configuration', { skip: integrationEnabled }, () => {
   assert.equal(integrationEnabled, false);
 });
-
-// The remaining admin, assigned-teacher, isolated-teacher, guardian, and storage
-// scenarios should run with disposable Supabase Auth users created by CI.
-// They are intentionally not faked here: unit tests must never be labelled RLS tests.

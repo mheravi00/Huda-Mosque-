@@ -1,4 +1,3 @@
--- Allow assigned teachers to create and edit their own draft report content.
 do $$ begin
   if not exists (select 1 from pg_policies where schemaname='public' and tablename='student_reports' and policyname='student_reports_teacher_insert') then
     create policy student_reports_teacher_insert on public.student_reports for insert to authenticated
@@ -19,7 +18,6 @@ do $$ begin
   end if;
 end $$;
 
--- A recipient must be able to read the message referenced by their recipient row.
 do $$ begin
   if not exists (select 1 from pg_policies where schemaname='public' and tablename='messages' and policyname='messages_recipient_select') then
     create policy messages_recipient_select on public.messages for select to authenticated
@@ -27,7 +25,6 @@ do $$ begin
   end if;
 end $$;
 
--- Visibility must be a database boundary as well as an API response filter.
 alter policy notes_teacher_all on public.student_notes
 using (
   visibility='Teacher + Admin'

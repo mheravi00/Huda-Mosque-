@@ -1,5 +1,3 @@
--- Ensure teacher-created student notes participate in the immutable audit trail.
--- The catalog guard makes this safe for live databases that may already have it.
 do $$
 begin
   if not exists (
