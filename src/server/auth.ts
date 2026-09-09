@@ -21,4 +21,5 @@ export async function requireUser(request:NextRequest):Promise<AuthContext>{
 }
 export async function requireAdmin(request:NextRequest){const c=await requireUser(request);if(c.profile.role!=='admin')throw new ApiError(403,'FORBIDDEN','Administrator access is required.');return c;}
 export async function requireTeacher(request:NextRequest){const c=await requireUser(request);if(c.profile.role!=='teacher')throw new ApiError(403,'FORBIDDEN','Teacher access is required.');return c;}
+export async function requireNoteAuthor(request:NextRequest){const c=await requireRole(request,['admin','teacher']);const{data,error}=await c.supabase.from('teachers').select('id').eq('profile_id',c.profile.id).maybeSingle();if(error)throw new ApiError(500,'DATABASE_ERROR','The request could not be completed.');if(!data)throw new ApiError(403,'FORBIDDEN','A linked teacher record is required to add student notes.');return c;}
 export async function requireRole(request:NextRequest,roles:Array<'admin'|'teacher'>){const c=await requireUser(request);if(!roles.includes(c.profile.role))throw new ApiError(403,'FORBIDDEN','Access is not permitted.');return c;}

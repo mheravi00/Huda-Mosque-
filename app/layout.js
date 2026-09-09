@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Huda Mosque Madrasa Management System',
-  description: 'Madrasa management, attendance, homework, assessments, reports, and communication workflow.',
+  title: 'Huda Mosque Madrasa',
+  description: 'Madrasa management, attendance, homework, assessments, and reports.',
 };
 
 export default function RootLayout({ children }) {
