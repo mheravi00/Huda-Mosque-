@@ -1,4 +1,3 @@
-function NotesAccessGuard(){const access=useApiResource(()=>notesApi.access(),[]);if(access.loading)return <LoadingState label="Checking note access…"/>;if(access.error)return <ErrorState message={access.error}/>;return <NotesForm/>}
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { BarChart3, Bell, BookOpen, CalendarDays, ChevronDown, ChevronRight, ClipboardCheck, Download, Eye, EyeOff, FileText, GraduationCap, Home, LogOut, Menu, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, School, Search, Settings, ShieldAlert, Upload, Users, X } from 'lucide-react';
