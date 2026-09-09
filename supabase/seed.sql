@@ -20,12 +20,10 @@ values
   ('550e8400-e29b-41d4-a716-446655440003', 'Arabic', 'Arabic language basics', true)
 on conflict (name) do nothing;
 
-insert into public.classes (id, name, academic_year, term, subject_id, room_location, day_of_week, start_time, end_time, active)
-values
-  ('660e8400-e29b-41d4-a716-446655440001', 'Year 3 Qur’an', '2026/2027', 'Term 1', '550e8400-e29b-41d4-a716-446655440001', 'Room 1', 'Saturday', '10:00:00', '11:00:00', true),
-  ('660e8400-e29b-41d4-a716-446655440002', 'Year 4 Qur’an', '2026/2027', 'Term 1', '550e8400-e29b-41d4-a716-446655440001', 'Room 2', 'Sunday', '09:00:00', '10:00:00', true),
-  ('660e8400-e29b-41d4-a716-446655440003', 'Year 5 Islamic Studies', '2026/2027', 'Term 1', '550e8400-e29b-41d4-a716-446655440002', 'Room 3', 'Friday', '15:00:00', '16:00:00', true)
-on conflict do nothing;
+-- The seven gender/age-bracket classes are seeded by
+-- supabase/migrations/20260909000000_classes_gender_age_brackets.sql, which
+-- already runs before this file on `supabase db reset`. Point subject_id/
+-- room_location/day_of_week/times at them here if a class needs a schedule.
 
 insert into public.guardians (id, first_name, last_name, relationship, phone, email, preferred_contact_method, receive_reports, receive_attendance_messages, receive_general_messages)
 values

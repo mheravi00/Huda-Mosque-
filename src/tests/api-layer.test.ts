@@ -2,7 +2,7 @@ import test from'node:test';import assert from'node:assert/strict';import{ApiErr
 const uuid='550e8400-e29b-41d4-a716-446655440001';
 test('all major resources define explicit write allowlists',()=>{for(const r of[students,guardians,subjects,classes,attendance,homework,assessments,reports,calendar])assert.ok(r.writeFields.length>0)});
 test('student payload rejects missing fields',()=>assert.throws(()=>students.create({},uuid),ApiError));
-test('student create ignores caller identity and validates values',()=>assert.equal(students.create({first_name:'A',last_name:'B',student_id:'S1'},uuid).student_id,'S1'));
+test('student create excludes the system-generated student_id and requires date_of_birth/gender',()=>{const result=students.create({first_name:'A',last_name:'B',date_of_birth:'2015-01-01',gender:'male',student_id:'S1'},uuid);assert.equal('student_id' in result,false);assert.equal(result.gender,'male');assert.throws(()=>students.create({first_name:'A',last_name:'B'},uuid),ApiError)});
 test('attendance validates status',()=>assert.throws(()=>ensureAttendanceStatus('Unknown'),ApiError));
 test('homework validates submission status',()=>assert.throws(()=>ensureHomeworkStatus('Done'),ApiError));
 test('scores reject negative and non-number values',()=>{assert.throws(()=>ensureNumber(-1,'score',0),ApiError);assert.throws(()=>ensureNumber('4','score',0),ApiError)});
