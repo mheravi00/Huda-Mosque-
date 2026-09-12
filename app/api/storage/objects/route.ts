@@ -1,1 +1,3 @@
 import{requireRole}from'@/server/auth';import{jsonBody,noContent,route}from'@/server/http';import{deleteObject}from'@/server/storage';export const DELETE=route(async r=>{const c=await requireRole(r,['admin','teacher']),b=await jsonBody(r);await deleteObject(c.supabase,b.bucket,b.path);return noContent()});
+
+export const dynamic='force-dynamic';

@@ -28,7 +28,7 @@ export async function apiRequest(path, options = {}) {
   const headers = new Headers(options.headers);
   headers.set('Authorization', `Bearer ${session.access_token}`);
   if (options.body && !(options.body instanceof FormData)) headers.set('Content-Type', 'application/json');
-  const response = await fetch(path, { ...options, headers, body: options.body instanceof FormData ? options.body : options.body === undefined ? undefined : JSON.stringify(options.body) });
+  const response = await fetch(path, { ...options, headers, cache: 'no-store', body: options.body instanceof FormData ? options.body : options.body === undefined ? undefined : JSON.stringify(options.body) });
   if (response.status === 204) return { data: null, meta: null };
   let payload;
   try { payload = await response.json(); } catch { payload = null; }

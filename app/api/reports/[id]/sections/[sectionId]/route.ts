@@ -28,3 +28,5 @@ export const DELETE = route(async (request, { params }: { params: { id: string; 
   if (!data) throw new ApiError(404, 'NOT_FOUND', 'The report section was not found.');
   return noContent();
 });
+
+export const dynamic='force-dynamic';
