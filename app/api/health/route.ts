@@ -8,7 +8,7 @@ export async function GET() {
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
       process.env.SUPABASE_SECRET_KEY
     ),
-  });
+  }, { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } });
 }
 
 export const dynamic='force-dynamic';
