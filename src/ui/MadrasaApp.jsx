@@ -49,7 +49,16 @@ function DirectoryPage({type,role}){const c=domainConfig[type],[search,setSearch
 
 function RelatedRecords({type,record,role}){if(type==='students')return <StudentRelations student={record} role={role}/>;if(type==='classes'&&role==='admin')return <ClassRelations classRecord={record}/>;if(type==='teachers'&&role==='admin')return <TeacherRelations teacher={record}/>;if(type==='homework')return <HomeworkSubmissions homework={record}/>;if(type==='assessments')return <AssessmentResults assessment={record}/>;return null}
 function RelationList({title,resource,idKey,onAdd,onRemove}){const[value,setValue]=useState(''),[error,setError]=useState('');async function add(){setError('');try{await onAdd(value);setValue('');await resource.refresh()}catch(err){setError(err.message)}}async function remove(id){setError('');try{await onRemove(id);resource.setData(rows=>rows.filter(x=>x[idKey]!==id))}catch(err){setError(err.message)}}return <section className="relation-panel"><h3>{title}</h3><MutationError error={error}/>{resource.loading?<LoadingState/>:resource.data.map(row=><div className="history-row" key={row[idKey]}><code>{row[idKey]}</code><button className="text-btn danger" onClick={()=>remove(row[idKey])}>Remove</button></div>)}<div className="inline-actions"><input value={value} onChange={e=>setValue(e.target.value)} placeholder={`${title.slice(0,-1)} UUID`}/><button className="btn btn-secondary" disabled={!value} onClick={add}>Assign</button></div></section>}
-function StudentRelations({student,role}){const guardians=useApiResource(()=>studentsApi.guardians(student.id),[student.id]),notes=useApiResource(()=>notesApi.list(student.id),[student.id]);return <div className="related-records"><h3>Guardians</h3>{guardians.loading?<LoadingState/>:guardians.data.length?guardians.data.map(g=><div className="history-row" key={g.id||g.guardian_id}><span>{g.guardian_id||g.id}</span>{role==='admin'&&<button className="text-btn danger" onClick={async()=>{await studentsApi.unlinkGuardian(student.id,g.guardian_id||g.id);guardians.refresh()}}>Unlink</button>}</div>):<EmptyState title="No linked guardians"/>}{role==='admin'&&<LinkGuardian student={student} onLinked={guardians.refresh}/>}{role==='admin'&&<ClassAssignment student={student}/>}<h3>Visible notes</h3>{notes.data.map(n=><div className="history-row" key={n.id}><span>{n.note}</span><Badge>{n.visibility}</Badge></div>)}</div>}
+function StudentRelations({student,role}){const guardians=useApiResource(()=>studentsApi.guardians(student.id),[student.id]),notes=useApiResource(()=>notesApi.list(student.id),[student.id]);return <div className="related-records"><h3>Guardians</h3>{guardians.loading?<LoadingState/>:guardians.data.length?guardians.data.map(g=><div className="history-row" key={g.id||g.guardian_id}><span>{g.guardian_id||g.id}</span>{role==='admin'&&<button className="text-btn danger" onClick={async()=>{await studentsApi.unlinkGuardian(student.id,g.guardian_id||g.id);guardians.refresh()}}>Unlink</button>}</div>):<EmptyState title="No linked guardians"/>}{role==='admin'&&<LinkGuardian student={student} onLinked={guardians.refresh}/>}{role==='admin'&&<ClassAssignment student={student}/>}<AttendanceHistory student={student}/><h3>Visible notes</h3>{notes.data.map(n=><div className="history-row" key={n.id}><span>{n.note}</span><Badge>{n.visibility}</Badge></div>)}</div>}
+function AttendanceHistory({student}){
+  const classes=useApiResource(()=>classesApi.list({limit:100}),[]);
+  const records=useApiResource(()=>attendanceApi.list({student_id:student.id,sort:'date',direction:'desc',limit:100}),[student.id]);
+  const className=id=>classes.data.find(c=>c.id===id)?.name||id;
+  return <section className="related-records">
+    <h3>Attendance record</h3>
+    {records.loading?<LoadingState/>:records.error?<ErrorState message={records.error}/>:records.data.length?records.data.map(r=><div className="history-row" key={r.id}><span>{formatDate(r.attendance_date)}</span><span>{className(r.class_id)}</span><Badge tone={r.status.toLowerCase()}>{r.status}</Badge></div>):<EmptyState title="No attendance recorded" text="No attendance has been taken for this student yet."/>}
+  </section>;
+}
 function ClassAssignment({student}){
   const classes=useApiResource(()=>classesApi.list({limit:100}),[]);
   const links=useApiResource(()=>studentsApi.classes(student.id),[student.id]);
@@ -99,21 +108,24 @@ function AttendancePage(){
   useEffect(()=>{if(!classId&&classes.data[0])setClassId(classes.data[0].id)},[classes.data,classId]);
   const students=useApiResource(()=>classId?studentsApi.list({class_id:classId,limit:100}):Promise.resolve({data:[]}),[classId]);
   const records=useApiResource(()=>classId?attendanceApi.list({class_id:classId,date_from:date,date_to:date,limit:100}):Promise.resolve({data:[]}),[classId,date]);
-  useEffect(()=>{const next={};students.data.forEach(s=>{next[s.id]=records.data.find(r=>r.student_id===s.id)?.status||'Present'});setStatuses(next)},[students.data,records.data]);
+  useEffect(()=>{const next={};students.data.forEach(s=>{const existing=records.data.find(r=>r.student_id===s.id);if(existing)next[s.id]=existing.status});setStatuses(next)},[students.data,records.data]);
   async function save(){
+    const marked=students.data.filter(student=>statuses[student.id]!==undefined);
+    if(!marked.length){setMessage('Mark at least one student before saving.');return}
     setSaving(true);setMessage('');
     try{
-      for(const student of students.data){
+      for(const student of marked){
         const existing=records.data.find(r=>r.student_id===student.id);
         if(existing)await attendanceApi.update(existing.id,{status:statuses[student.id]});
         else await attendanceApi.create({class_id:classId,student_id:student.id,attendance_date:date,status:statuses[student.id]});
       }
       await records.refresh();
-      setMessage('Attendance saved successfully.');
+      setMessage(`Attendance saved for ${marked.length} student${marked.length===1?'':'s'}.`);
     }catch(err){setMessage(err.message)}
     finally{setSaving(false)}
   }
-  const summary=['Present','Absent','Late','Excused'].map(status=>[status,students.data.filter(s=>statuses[s.id]===status).length]);
+  const summary=['Present','Absent','Excused'].map(status=>[status,students.data.filter(s=>statuses[s.id]===status).length]);
+  const unmarkedCount=students.data.filter(s=>statuses[s.id]===undefined).length;
   return <div>
     <PageHeader eyebrow="Academic" title="Attendance" description="Load assigned students and save the weekly register."/>
     <section className="surface">
@@ -123,10 +135,10 @@ function AttendancePage(){
       </div>
       <MutationError error={message}/>
       {students.loading||records.loading?<LoadingState/>:students.error||records.error?<ErrorState message={students.error||records.error}/>:students.data.length?<>
-        <div className="attendance-summary">{summary.map(([status,count])=><Badge tone={status.toLowerCase()} key={status}>{status}: {count}</Badge>)}</div>
+        <div className="attendance-summary">{summary.map(([status,count])=><Badge tone={status.toLowerCase()} key={status}>{status}: {count}</Badge>)}{unmarkedCount>0&&<Badge key="unmarked">Not yet marked: {unmarkedCount}</Badge>}</div>
         <div className="register">
           <header><span>Student</span><span>Attendance status</span></header>
-          {students.data.map(s=><div key={s.id}><span className="person-cell"><Avatar name={fullName(s)} size="xs"/><strong>{fullName(s)}</strong></span><div className="status-picker">{['Present','Absent','Late','Excused'].map(status=><button key={status} className={statuses[s.id]===status?'active':''} onClick={()=>setStatuses({...statuses,[s.id]:status})}>{status}</button>)}</div></div>)}
+          {students.data.map(s=><div key={s.id}><span className="person-cell"><Avatar name={fullName(s)} size="xs"/><strong>{fullName(s)}</strong></span><div className="status-picker">{['Present','Absent','Excused'].map(status=><button key={status} className={statuses[s.id]===status?'active':''} onClick={()=>setStatuses({...statuses,[s.id]:status})}>{status}</button>)}</div></div>)}
           <footer className="sticky-actions"><button className="btn btn-primary" disabled={saving} onClick={save}>{saving?'Saving…':'Save attendance'}</button></footer>
         </div>
       </>:<EmptyState title="No assigned students" text="This class has no visible students."/>}
