@@ -34,3 +34,22 @@ export const createFamily=route(async(request:NextRequest)=>{
  }
 });
 export const guardianChildren=route(async(request:NextRequest,_:{params:{id:string}})=>{ensureUuid(_.params.id);const c=await requireAdmin(request);const{data,error}=await c.supabase.from('student_guardians').select('students(id,student_id,first_name,last_name,date_of_birth,gender,status,class_students(classes(id,name)))').eq('guardian_id',_.params.id);mapDatabaseError(error);return ok((data??[]).map((r:any)=>r.students).filter(Boolean).map((s:any)=>{const{class_students,...rest}=s;return{...rest,classes:(class_students??[]).map((x:any)=>x.classes).filter(Boolean)}}))});
+// Keeps a student's class in step with their date of birth and gender. A placement the admin made with an override
+// reason is left alone, as is a student whose new age matches no class (the bracket review flags those instead).
+export async function syncStudentClass(supabase:any,student:{id:string;gender:string;date_of_birth:string}){
+ const current=(await many(supabase.from('class_students').select('class_id,override_reason').eq('student_id',student.id))).data;
+ if(current.some((r:any)=>r.override_reason))return;
+ const classes=(await many(supabase.from('classes').select('id,name,gender,min_age,max_age,active'))).data as BracketClass[];
+ const target=matchClass(classes,student.gender,ageOn(student.date_of_birth));
+ if(!target||(current.length===1&&current[0].class_id===target.id))return;
+ const{error:removeError}=await supabase.from('class_students').delete().eq('student_id',student.id).neq('class_id',target.id);mapDatabaseError(removeError);
+ if(!current.some((r:any)=>r.class_id===target.id)){const{error}=await supabase.from('class_students').insert({student_id:student.id,class_id:target.id});mapDatabaseError(error)}
+}
+export const studentWithClassSelect='*,class_students(classes(id,name))';
+export const patchStudent=route(async(request:NextRequest,_:{params:{id:string}})=>{
+ ensureUuid(_.params.id);const c=await requireAdmin(request),body=await jsonBody(request);assertAllowedFields(body,students.writeFields);
+ const payload=students.patch(body);if(!Object.keys(payload).length)throw new ApiError(400,'VALIDATION_ERROR','No update fields were supplied.');
+ const data=await mutate(c.supabase.from('students').update(payload).eq('id',_.params.id).select().maybeSingle());if(!data)throw new ApiError(404,'NOT_FOUND','The requested record was not found.');
+ if(body.date_of_birth!==undefined||body.gender!==undefined)await syncStudentClass(c.supabase,data);
+ return ok(await one(c.supabase.from('students').select(studentWithClassSelect).eq('id',data.id).maybeSingle()));
+});
