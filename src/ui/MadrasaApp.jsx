@@ -1,17 +1,17 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { BarChart3, Bell, BookOpen, CalendarDays, ChevronDown, ChevronRight, ClipboardCheck, Download, Eye, EyeOff, FileText, GraduationCap, Home, LogOut, Menu, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, School, Search, Settings, ShieldAlert, Upload, Users, X } from 'lucide-react';
+import { BarChart3, Bell, BookOpen, CalendarDays, ChevronDown, ChevronRight, ClipboardCheck, Download, Eye, EyeOff, FileText, GraduationCap, Home, LogOut, Mail, Menu, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, School, Search, Settings, ShieldAlert, Upload, Users, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { ApiError } from '../lib/api/client';
-import { assessmentsApi, attendanceApi, calendarApi, classesApi, guardiansApi, homeworkApi, messagesApi, notesApi, notificationsApi, reportRequestsApi, reportsApi, settingsApi, storageApi, studentsApi, subjectsApi, teachersApi } from '../lib/api/resources';
+import { assessmentsApi, attendanceApi, calendarApi, classesApi, guardiansApi, homeworkApi, messagesApi, messageTemplatesApi, notesApi, notificationsApi, reportRequestsApi, reportsApi, settingsApi, storageApi, studentsApi, subjectsApi, teachersApi } from '../lib/api/resources';
 import { ActionMenu, Avatar, Badge, DataTable, EmptyState, FormField, Modal, PageHeader, Pagination, SearchBox, Select, Tabs } from './components';
 import { useApiResource, useDebounced } from './useApiResource';
 import './styles.css';
 
-const icons={dashboard:Home,students:Users,guardians:Users,teachers:GraduationCap,classes:School,subjects:BookOpen,attendance:ClipboardCheck,homework:BookOpen,assessments:BarChart3,notes:FileText,reports:FileText,'report-requests':ClipboardCheck,messages:MessageSquare,notifications:Bell,calendar:CalendarDays,settings:Settings,storage:Upload,'bracket-review':ShieldAlert};
-const adminGroups=[['Overview',[['dashboard','Dashboard']]],['People',[['students','Students'],['guardians','Guardians'],['teachers','Teachers']]],['Academic',[['classes','Classes'],['subjects','Subjects'],['attendance','Attendance'],['homework','Homework'],['assessments','Assessments'],['bracket-review','Bracket Review']]],['Reports',[['reports','Student Reports'],['report-requests','Report Requests']]],['Updates',[['notifications','Notifications']]],['Madrasa',[['settings','Settings'],['storage','Files']]]];
+const icons={dashboard:Home,students:Users,guardians:Users,teachers:GraduationCap,classes:School,subjects:BookOpen,attendance:ClipboardCheck,homework:BookOpen,assessments:BarChart3,notes:FileText,reports:FileText,'report-requests':ClipboardCheck,messages:MessageSquare,'message-templates':Mail,notifications:Bell,calendar:CalendarDays,settings:Settings,storage:Upload,'bracket-review':ShieldAlert};
+const adminGroups=[['Overview',[['dashboard','Dashboard']]],['People',[['students','Students'],['guardians','Guardians'],['teachers','Teachers']]],['Academic',[['classes','Classes'],['subjects','Subjects'],['attendance','Attendance'],['homework','Homework'],['assessments','Assessments'],['bracket-review','Bracket Review']]],['Reports',[['reports','Student Reports'],['report-requests','Report Requests']]],['Communication',[['message-templates','Message Templates']]],['Updates',[['notifications','Notifications']]],['Madrasa',[['settings','Settings'],['storage','Files']]]];
 const teacherGroups=[['Overview',[['dashboard','Dashboard']]],['Teaching',[['classes','My Classes'],['students','Students'],['attendance','Attendance'],['homework','Homework'],['assessments','Assessments'],['notes','Student Notes']]],['Reports',[['reports','Reports'],['report-requests','Report Requests']]],['Updates',[['notifications','Notifications']]]];
-const adminOnly=new Set(['guardians','teachers','subjects','settings','storage','bracket-review']);
+const adminOnly=new Set(['guardians','teachers','subjects','settings','storage','bracket-review','message-templates']);
 const fullName=r=>[r?.first_name??r?.profiles?.first_name,r?.last_name??r?.profiles?.last_name].filter(Boolean).join(' ')||r?.name||'Unknown';
 const formatDate=value=>value?new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric'}).format(new Date(value)):'—';
 const statusLabel=value=>String(value??'—').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
@@ -34,7 +34,8 @@ const domainConfig={
  classes:{title:'Classes',description:'The seven fixed gender/age-bracket classes. Schedules can be edited; the set itself is seeded, not created here.',action:null,loader:(role,p)=>classesApi.list(p),adminApi:classesApi.admin,fields:[['name','Class name','text'],['academic_year','Academic year','text'],['term','Term','text'],['room_location','Room','text'],['day_of_week','Day','text'],['start_time','Start time','time'],['end_time','End time','time']],columns:[['name','Class'],['gender','Gender'],['bracket','Age bracket'],['active','Status']]},
  homework:{title:'Homework',description:'Assignments for permitted classes.',action:'Create homework',loader:(role,p)=>homeworkApi.list(p),api:homeworkApi,fields:[['title','Title','text'],['class_id','Class ID','text'],['description','Description','textarea'],['due_date','Due date','date'],['instructions','Instructions','textarea']],columns:[['title','Homework'],['due_date','Due'],['assigned_date','Assigned'],['class_id','Class']]},
  assessments:{title:'Assessments',description:'Assessment records and student results.',action:'Add assessment',loader:(role,p)=>assessmentsApi.list(p),api:assessmentsApi,fields:[['assessment_name','Assessment name','text'],['class_id','Class ID','text'],['student_id','Student ID','text'],['assessment_date','Date','date'],['maximum_score','Maximum score','number'],['student_score','Student score','number'],['grade','Grade','text']],columns:[['assessment_name','Assessment'],['assessment_date','Date'],['student_score','Score'],['grade','Grade']]},
- 'report-requests':{title:'Report Requests',description:'Reporting cycles and deadlines.',action:'Create request',loader:(role,p)=>reportRequestsApi.list(p),api:reportRequestsApi,fields:[['report_type','Type (Weekly or Monthly)','text'],['report_period','Report period','text'],['deadline','Deadline','date'],['class_id','Class ID','text']],columns:[['report_period','Period'],['report_type','Type'],['deadline','Deadline'],['status','Status']]}
+ 'report-requests':{title:'Report Requests',description:'Reporting cycles and deadlines.',action:'Create request',loader:(role,p)=>reportRequestsApi.list(p),api:reportRequestsApi,fields:[['report_type','Type (Weekly or Monthly)','text'],['report_period','Report period','text'],['deadline','Deadline','date'],['class_id','Class ID','text']],columns:[['report_period','Period'],['report_type','Type'],['deadline','Deadline'],['status','Status']]},
+ 'message-templates':{title:'Message Templates',description:'Pre-written parent messages used from the Attendance page — edit the wording here, staff just click Send.',action:'Add template',loader:(role,p)=>messageTemplatesApi.admin.list(p),adminApi:messageTemplatesApi.admin,fields:[['name','Template name','text'],['trigger_weeks','Trigger after (weeks absent)','number'],['channel','Channel','select',['email','sms','both']],['subject','Email subject','text'],['body','Message body','textarea']],columns:[['name','Template'],['trigger_weeks','Trigger'],['channel','Channel'],['active','Status']]}
 };
 function renderCell(row,key){if(key==='person')return <span className="person-cell"><Avatar name={fullName(row)} size="xs"/><span><strong>{fullName(row)}</strong><small>{row.email||row.profiles?.email||row.student_id}</small></span></span>;if(key==='role')return <Badge>{statusLabel(row.profiles?.role??row.role)}</Badge>;if(['status','active'].includes(key)){const value=key==='active'?(row.active??row.profiles?.active):row[key];return <Badge>{key==='active'?(value?'Active':'Inactive'):statusLabel(value)}</Badge>}if(key==='gender')return statusLabel(row.gender);if(key==='bracket')return row.min_age!=null?`${row.min_age}-${row.max_age}`:'—';if(key.includes('date')||key==='deadline')return formatDate(row[key]);return row[key]??'—'}
 function RecordForm({config,record,onSave,onClose}){
@@ -87,7 +88,102 @@ function TeacherRelations({teacher}){const assigned=useApiResource(()=>teachersA
 function HomeworkSubmissions({homework}){const submissions=useApiResource(()=>homeworkApi.submissions(homework.id),[homework.id]),[error,setError]=useState('');async function update(row,status){try{const result=await homeworkApi.updateSubmission(homework.id,row.student_id,{status});submissions.setData(rows=>rows.map(x=>x.student_id===row.student_id?result.data:x))}catch(err){setError(err.message)}}return <section className="related-records"><h3>Submissions</h3><MutationError error={error}/>{submissions.loading?<LoadingState/>:submissions.data.length?submissions.data.map(row=><div className="history-row" key={row.student_id}><code>{row.student_id}</code><Select value={row.status} onChange={value=>update(row,value)}><option>Not completed</option><option>Completed</option><option>Late</option></Select></div>):<EmptyState title="No submissions"/>}</section>}
 function AssessmentResults({assessment}){const results=useApiResource(()=>assessmentsApi.results(assessment.id),[assessment.id]),[studentId,setStudentId]=useState(''),[score,setScore]=useState(''),[error,setError]=useState('');async function add(){try{const result=await assessmentsApi.createResult(assessment.id,{student_id:studentId,score:Number(score)});results.setData(rows=>[...rows,result.data]);setStudentId('');setScore('')}catch(err){setError(err.message)}}return <section className="related-records"><h3>Results</h3><MutationError error={error}/>{results.data.map(row=><div className="history-row" key={row.student_id}><code>{row.student_id}</code><strong>{row.score??'—'}</strong></div>)}<div className="form-grid"><FormField label="Student UUID"><input value={studentId} onChange={e=>setStudentId(e.target.value)}/></FormField><FormField label="Score"><input type="number" value={score} onChange={e=>setScore(e.target.value)}/></FormField></div><button className="btn btn-secondary" onClick={add}>Add result</button></section>}
 
-function AttendancePage(){const classes=useApiResource(()=>classesApi.list({limit:100}),[]),[classId,setClassId]=useState(''),[date,setDate]=useState(new Date().toISOString().slice(0,10)),[statuses,setStatuses]=useState({}),[saving,setSaving]=useState(false),[message,setMessage]=useState('');useEffect(()=>{if(!classId&&classes.data[0])setClassId(classes.data[0].id)},[classes.data,classId]);const students=useApiResource(()=>classId?studentsApi.list({class_id:classId,limit:100}):Promise.resolve({data:[]}),[classId]);const records=useApiResource(()=>classId?attendanceApi.list({class_id:classId,date_from:date,date_to:date,limit:100}):Promise.resolve({data:[]}),[classId,date]);useEffect(()=>{const next={};students.data.forEach(s=>{next[s.id]=records.data.find(r=>r.student_id===s.id)?.status||'Present'});setStatuses(next)},[students.data,records.data]);async function save(){setSaving(true);setMessage('');try{for(const student of students.data){const existing=records.data.find(r=>r.student_id===student.id);if(existing)await attendanceApi.update(existing.id,{status:statuses[student.id]});else await attendanceApi.create({class_id:classId,student_id:student.id,attendance_date:date,status:statuses[student.id]})}await records.refresh();setMessage('Attendance saved successfully.')}catch(err){setMessage(err.message)}finally{setSaving(false)}}return <div><PageHeader eyebrow="Academic" title="Attendance" description="Load assigned students and save the daily register."/><section className="surface"><div className="attendance-controls"><Select label="Class" value={classId} onChange={setClassId}><option value="">Select class</option>{classes.data.map(c=><option value={c.id} key={c.id}>{c.name}</option>)}</Select><FormField label="Date"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></FormField></div><MutationError error={message}/>{students.loading||records.loading?<LoadingState/>:students.error||records.error?<ErrorState message={students.error||records.error}/>:students.data.length?<div className="register"><header><span>Student</span><span>Attendance status</span></header>{students.data.map(s=><div key={s.id}><span className="person-cell"><Avatar name={fullName(s)} size="xs"/><strong>{fullName(s)}</strong></span><div className="status-picker">{['Present','Absent','Late','Excused'].map(status=><button key={status} className={statuses[s.id]===status?'active':''} onClick={()=>setStatuses({...statuses,[s.id]:status})}>{status}</button>)}</div></div>)}<footer className="sticky-actions"><button className="btn btn-primary" disabled={saving} onClick={save}>{saving?'Saving…':'Save attendance'}</button></footer></div>:<EmptyState title="No assigned students" text="This class has no visible students."/>}</section></div>}
+const absenceBadgeTone=streak=>streak>=3?'absent':'late';
+function AttendancePage(){
+  const classes=useApiResource(()=>classesApi.list({limit:100}),[]);
+  const [classId,setClassId]=useState('');
+  const [date,setDate]=useState(new Date().toISOString().slice(0,10));
+  const [statuses,setStatuses]=useState({});
+  const [saving,setSaving]=useState(false);
+  const [message,setMessage]=useState('');
+  useEffect(()=>{if(!classId&&classes.data[0])setClassId(classes.data[0].id)},[classes.data,classId]);
+  const students=useApiResource(()=>classId?studentsApi.list({class_id:classId,limit:100}):Promise.resolve({data:[]}),[classId]);
+  const records=useApiResource(()=>classId?attendanceApi.list({class_id:classId,date_from:date,date_to:date,limit:100}):Promise.resolve({data:[]}),[classId,date]);
+  useEffect(()=>{const next={};students.data.forEach(s=>{next[s.id]=records.data.find(r=>r.student_id===s.id)?.status||'Present'});setStatuses(next)},[students.data,records.data]);
+  async function save(){
+    setSaving(true);setMessage('');
+    try{
+      for(const student of students.data){
+        const existing=records.data.find(r=>r.student_id===student.id);
+        if(existing)await attendanceApi.update(existing.id,{status:statuses[student.id]});
+        else await attendanceApi.create({class_id:classId,student_id:student.id,attendance_date:date,status:statuses[student.id]});
+      }
+      await records.refresh();
+      setMessage('Attendance saved successfully.');
+    }catch(err){setMessage(err.message)}
+    finally{setSaving(false)}
+  }
+  const summary=['Present','Absent','Late','Excused'].map(status=>[status,students.data.filter(s=>statuses[s.id]===status).length]);
+  return <div>
+    <PageHeader eyebrow="Academic" title="Attendance" description="Load assigned students and save the weekly register."/>
+    <section className="surface">
+      <div className="attendance-controls">
+        <Select label="Class" value={classId} onChange={setClassId}><option value="">Select class</option>{classes.data.map(c=><option value={c.id} key={c.id}>{c.name}</option>)}</Select>
+        <FormField label="Date"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></FormField>
+      </div>
+      <MutationError error={message}/>
+      {students.loading||records.loading?<LoadingState/>:students.error||records.error?<ErrorState message={students.error||records.error}/>:students.data.length?<>
+        <div className="attendance-summary">{summary.map(([status,count])=><Badge tone={status.toLowerCase()} key={status}>{status}: {count}</Badge>)}</div>
+        <div className="register">
+          <header><span>Student</span><span>Attendance status</span></header>
+          {students.data.map(s=><div key={s.id}><span className="person-cell"><Avatar name={fullName(s)} size="xs"/><strong>{fullName(s)}</strong></span><div className="status-picker">{['Present','Absent','Late','Excused'].map(status=><button key={status} className={statuses[s.id]===status?'active':''} onClick={()=>setStatuses({...statuses,[s.id]:status})}>{status}</button>)}</div></div>)}
+          <footer className="sticky-actions"><button className="btn btn-primary" disabled={saving} onClick={save}>{saving?'Saving…':'Save attendance'}</button></footer>
+        </div>
+      </>:<EmptyState title="No assigned students" text="This class has no visible students."/>}
+    </section>
+    {classId&&<AbsenceTracker classId={classId}/>}
+  </div>;
+}
+function AbsenceTracker({classId}){
+  const absences=useApiResource(()=>attendanceApi.absenceSummary({class_id:classId,min_streak:1}),[classId]);
+  const [notifying,setNotifying]=useState(null);
+  return <section className="surface">
+    <div className="section-head"><div><h2>Absence tracker</h2><p className="muted">Students with unbroken runs of absences for this class. 3 or more weeks is flagged.</p></div></div>
+    {absences.loading?<LoadingState/>:absences.error?<ErrorState message={absences.error} onRetry={()=>absences.refresh().catch(()=>{})}/>:absences.data.length?<div className="absence-register">
+      <header><span>Student</span><span>Streak</span><span>Last recorded</span><span/></header>
+      {absences.data.map(row=><div key={row.student_id}>
+        <span className="person-cell"><Avatar name={`${row.first_name} ${row.last_name}`} size="xs"/><strong>{row.first_name} {row.last_name}</strong></span>
+        <span><Badge tone={absenceBadgeTone(row.current_absent_streak)}>{row.current_absent_streak} week{row.current_absent_streak===1?'':'s'}</Badge></span>
+        <span>{formatDate(row.last_attendance_date)}</span>
+        <button className="btn btn-secondary" onClick={()=>setNotifying(row)}>Send message</button>
+      </div>)}
+    </div>:<EmptyState title="No absences to flag" text="Every student in this class has an unbroken attendance run."/>}
+    {notifying&&<SendMessageModal classId={classId} student={notifying} onClose={()=>setNotifying(null)}/>}
+  </section>;
+}
+function renderTemplateText(text,vars){return (text||'').replaceAll('{{student_name}}',vars.student_name).replaceAll('{{class_name}}',vars.class_name).replaceAll('{{weeks_absent}}',String(vars.weeks_absent))}
+function SendMessageModal({classId,student,onClose}){
+  const templates=useApiResource(()=>messageTemplatesApi.list({active:true}),[]);
+  const [templateId,setTemplateId]=useState('');
+  const [sending,setSending]=useState(false);
+  const [error,setError]=useState('');
+  const [sent,setSent]=useState('');
+  const studentName=`${student.first_name} ${student.last_name}`;
+  const vars={student_name:studentName,class_name:student.class_name||'their class',weeks_absent:student.current_absent_streak};
+  useEffect(()=>{
+    if(templateId||!templates.data.length)return;
+    const streak=student.current_absent_streak;
+    const preferred=[...templates.data].sort((a,b)=>b.trigger_weeks-a.trigger_weeks).find(t=>t.trigger_weeks<=streak)||templates.data[0];
+    setTemplateId(preferred.id);
+  },[templates.data,templateId,student.current_absent_streak]);
+  const selected=templates.data.find(t=>t.id===templateId);
+  async function send(){
+    setSending(true);setError('');
+    try{
+      const result=await attendanceApi.notify({student_id:student.student_id,template_id:templateId,class_id:classId});
+      setSent(`Sent to ${result.data.sent} guardian${result.data.sent===1?'':'s'}.`);
+    }catch(err){setError(err.message)}
+    finally{setSending(false)}
+  }
+  return <Modal open title={`Send message about ${studentName}`} onClose={onClose}>
+    <MutationError error={error}/>
+    {sent?<p className="empty-state">{sent}</p>:<>
+      <FormField label="Template"><select value={templateId} onChange={e=>setTemplateId(e.target.value)} disabled={templates.loading}>{templates.data.map(t=><option value={t.id} key={t.id}>{t.name}</option>)}</select></FormField>
+      {selected&&<div className="template-preview">{selected.subject&&<p><strong>{renderTemplateText(selected.subject,vars)}</strong></p>}<p>{renderTemplateText(selected.body,vars)}</p></div>}
+      <div className="inline-actions"><button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={!templateId||sending} onClick={send}>{sending?'Sending…':'Send'}</button></div>
+    </>}
+  </Modal>;
+}
 
 function BracketReviewPage(){const review=useApiResource(()=>studentsApi.bracketReview(),[]);return <div><PageHeader eyebrow="Start of term" title="Bracket Review" description="Students whose current age no longer matches their assigned class's bracket, or whose gender no longer matches the class. This is a flag only — move students from their record's Class panel."/><section className="surface data-surface">{review.loading?<LoadingState/>:review.error?<ErrorState message={review.error} onRetry={()=>review.refresh().catch(()=>{})}/>:review.data.length?<div className="register"><header><span>Student</span><span>Current age</span><span>Assigned class</span><span>Bracket</span></header>{review.data.map(row=><div key={row.class_student_id}><span className="person-cell"><Avatar name={`${row.first_name} ${row.last_name}`} size="xs"/><strong>{row.first_name} {row.last_name}</strong></span><span>{row.current_age}</span><span>{row.class_name} ({statusLabel(row.class_gender)})</span><span>{row.min_age}-{row.max_age}</span></div>)}</div>:<EmptyState title="No students out of bracket" text="Every assigned student currently fits their class's gender and age bracket."/>}</section></div>}
 function NotesForm(){const students=useApiResource(()=>studentsApi.list({limit:100}),[]),[studentId,setStudentId]=useState(''),[note,setNote]=useState(''),[visibility,setVisibility]=useState('Teacher + Admin'),[saving,setSaving]=useState(false),[error,setError]=useState('');useEffect(()=>{if(!studentId&&students.data[0])setStudentId(students.data[0].id)},[students.data,studentId]);const notes=useApiResource(()=>studentId?notesApi.list(studentId):Promise.resolve({data:[]}),[studentId]);async function create(){setSaving(true);setError('');try{await notesApi.create(studentId,{note,visibility});setNote('');await notes.refresh()}catch(err){setError(err.message)}finally{setSaving(false)}}async function edit(item){const value=prompt('Edit note',item.note);if(value===null)return;try{const result=await notesApi.update(item.id,{note:value});notes.setData(rows=>rows.map(x=>x.id===item.id?result.data:x))}catch(err){setError(err.message)}}async function remove(item){if(!confirm('Delete this note?'))return;try{await notesApi.remove(item.id);notes.setData(rows=>rows.filter(x=>x.id!==item.id))}catch(err){setError(err.message)}}return <div><PageHeader eyebrow="Teaching" title="Student Notes" description="Notes are returned according to database visibility rules."/><div className="filter-bar surface"><Select label="Student" value={studentId} onChange={setStudentId}>{students.data.map(s=><option value={s.id} key={s.id}>{fullName(s)}</option>)}</Select></div><section className="surface settings-form"><MutationError error={error}/><FormField label="New note"><textarea rows="4" value={note} onChange={e=>setNote(e.target.value)}/></FormField><Select label="Visibility" value={visibility} onChange={setVisibility}><option>Teacher + Admin</option></Select><button className="btn btn-primary" disabled={!note||saving} onClick={create}>{saving?'Saving…':'Add note'}</button></section>{notes.loading?<LoadingState/>:<div className="note-list">{notes.data.map(n=><article className="surface note-card" key={n.id}><Badge tone={n.visibility==='Admin Only'?'admin-only':'teacher-admin'}>{n.visibility}</Badge><ActionMenu onAction={action=>action==='Archive'?remove(n):edit(n)}/><p>{n.note}</p><small>{formatDate(n.created_at)}</small></article>)}</div>}</div>}
