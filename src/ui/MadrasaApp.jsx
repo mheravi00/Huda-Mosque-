@@ -7,6 +7,7 @@ import { assessmentsApi, attendanceApi, calendarApi, classesApi, guardiansApi, h
 import { ActionMenu, Avatar, Badge, DataTable, EmptyState, FormField, Modal, PageHeader, Pagination, SearchBox, Select, Tabs } from './components';
 import { useApiResource, useDebounced } from './useApiResource';
 import './styles.css';
+import { listAllAttendanceRows, saveRegister } from './attendance-register';
 
 const icons={dashboard:Home,students:Users,guardians:Users,teachers:GraduationCap,classes:School,subjects:BookOpen,attendance:ClipboardCheck,homework:BookOpen,assessments:BarChart3,notes:FileText,reports:FileText,'report-requests':ClipboardCheck,messages:MessageSquare,'message-templates':Mail,notifications:Bell,calendar:CalendarDays,settings:Settings,storage:Upload,'bracket-review':ShieldAlert};
 const adminGroups=[['Overview',[['dashboard','Dashboard']]],['People',[['students','Students'],['guardians','Guardians'],['teachers','Teachers']]],['Academic',[['classes','Classes'],['subjects','Subjects'],['attendance','Attendance'],['homework','Homework'],['assessments','Assessments'],['bracket-review','Bracket Review']]],['Reports',[['reports','Student Reports'],['report-requests','Report Requests']]],['Communication',[['message-templates','Message Templates']]],['Updates',[['notifications','Notifications']]],['Madrasa',[['settings','Settings'],['storage','Files']]]];
@@ -47,16 +48,16 @@ function RecordForm({config,record,onSave,onClose}){
 }
 function DirectoryPage({type,role}){const c=domainConfig[type],[search,setSearch]=useState(''),[page,setPage]=useState(1),[editing,setEditing]=useState(null),[creating,setCreating]=useState(false),[mutationError,setMutationError]=useState('');const debounced=useDebounced(search);const resource=useApiResource(()=>c.loader(role,{page,limit:25,search:debounced||undefined}),[type,role,page,debounced]);const writeApi=c.adminApi||(c.api);const canWrite=role==='admin'||!['students','classes','report-requests'].includes(type);async function save(body){const wasCreating=!editing;const response=editing?await writeApi.update(editing.id,body):await writeApi.create(body);resource.setData(rows=>type==='teachers'&&body.role==='admin'?rows:editing?rows.map(x=>x.id===editing.id?response.data:x):[response.data,...rows]);setCreating(false);if(type==='students'&&wasCreating)setEditing(response.data);else setEditing(null);resource.refresh().catch(error=>setMutationError(error.message||'The record was saved, but the list could not be refreshed.'))}async function remove(record){if(!confirm(`Confirm removal of ${fullName(record)||record.name}?`))return;setMutationError('');try{await writeApi.remove(record.id);resource.setData(rows=>rows.filter(x=>x.id!==record.id))}catch(err){setMutationError(err.message)}}const columns=c.columns.map(([key,label])=>({key,label,render:r=>renderCell(r,key)}));return <div><PageHeader eyebrow="Live records" title={c.title} description={c.description} action={canWrite?c.action:null} onAction={()=>setCreating(true)}/><div className="surface data-surface"><div className="filter-bar"><SearchBox value={search} onChange={v=>{setSearch(v);setPage(1)}} placeholder={`Search ${c.title.toLowerCase()}…`}/></div><MutationError error={mutationError}/>{resource.loading?<LoadingState/>:resource.error?<ErrorState message={resource.error} onRetry={()=>resource.refresh().catch(()=>{})}/>:resource.data.length?<><DataTable columns={columns} rows={resource.data} onRow={setEditing} onAction={canWrite?(action,row)=>action==='Archive'?remove(row):setEditing(row):null}/><Pagination meta={resource.meta} onPage={setPage}/></>:<EmptyState title={`No ${c.title.toLowerCase()} found`} text={search?'No records match this search.':'No records have been added yet.'}/>}</div><Modal open={creating||!!editing} title={editing?(type==='students'&&editing.student_id?`Student ${editing.student_id}`:type==='teachers'?'Staff account details':`${c.title.slice(0,-1)} details`):c.action} onClose={()=>{setCreating(false);setEditing(null)}}>{(creating||editing)&&<><RecordForm config={c} record={editing} onSave={save} onClose={()=>{setCreating(false);setEditing(null)}}/>{editing&&<RelatedRecords type={type} record={editing} role={role}/>}</>}</Modal></div>}
 
-function RelatedRecords({type,record,role}){if(type==='students')return <StudentRelations student={record} role={role}/>;if(type==='classes'&&role==='admin')return <ClassRelations classRecord={record}/>;if(type==='teachers'&&role==='admin')return <TeacherRelations teacher={record}/>;if(type==='homework')return <HomeworkSubmissions homework={record}/>;if(type==='assessments')return <AssessmentResults assessment={record}/>;return null}
+function RelatedRecords({type,record,role}){if(type==='students')return <StudentRelations student={record} role={role}/>;if(type==='classes')return <><AttendancePage initialClassId={record.id}/>{role==='admin'&&<ClassRelations classRecord={record}/>}</>;if(type==='teachers'&&role==='admin')return <TeacherRelations teacher={record}/>;if(type==='homework')return <HomeworkSubmissions homework={record}/>;if(type==='assessments')return <AssessmentResults assessment={record}/>;return null}
 function RelationList({title,resource,idKey,onAdd,onRemove}){const[value,setValue]=useState(''),[error,setError]=useState('');async function add(){setError('');try{await onAdd(value);setValue('');await resource.refresh()}catch(err){setError(err.message)}}async function remove(id){setError('');try{await onRemove(id);resource.setData(rows=>rows.filter(x=>x[idKey]!==id))}catch(err){setError(err.message)}}return <section className="relation-panel"><h3>{title}</h3><MutationError error={error}/>{resource.loading?<LoadingState/>:resource.data.map(row=><div className="history-row" key={row[idKey]}><code>{row[idKey]}</code><button className="text-btn danger" onClick={()=>remove(row[idKey])}>Remove</button></div>)}<div className="inline-actions"><input value={value} onChange={e=>setValue(e.target.value)} placeholder={`${title.slice(0,-1)} UUID`}/><button className="btn btn-secondary" disabled={!value} onClick={add}>Assign</button></div></section>}
-function StudentRelations({student,role}){const guardians=useApiResource(()=>studentsApi.guardians(student.id),[student.id]),notes=useApiResource(()=>notesApi.list(student.id),[student.id]);return <div className="related-records"><h3>Guardians</h3>{guardians.loading?<LoadingState/>:guardians.data.length?guardians.data.map(g=><div className="history-row" key={g.id||g.guardian_id}><span>{g.guardian_id||g.id}</span>{role==='admin'&&<button className="text-btn danger" onClick={async()=>{await studentsApi.unlinkGuardian(student.id,g.guardian_id||g.id);guardians.refresh()}}>Unlink</button>}</div>):<EmptyState title="No linked guardians"/>}{role==='admin'&&<LinkGuardian student={student} onLinked={guardians.refresh}/>}{role==='admin'&&<ClassAssignment student={student}/>}<AttendanceHistory student={student}/><h3>Visible notes</h3>{notes.data.map(n=><div className="history-row" key={n.id}><span>{n.note}</span><Badge>{n.visibility}</Badge></div>)}</div>}
+function StudentRelations({student,role}){const [tab,setTab]=useState("Details");const guardians=useApiResource(()=>studentsApi.guardians(student.id),[student.id]),notes=useApiResource(()=>notesApi.list(student.id),[student.id]);return <div className="related-records"><Tabs items={["Details","Attendance"]} active={tab} onChange={setTab}/>{tab==="Attendance"?<AttendanceHistory key={student.id} student={student}/>:<><h3>Guardians</h3>{guardians.loading?<LoadingState/>:guardians.data.length?guardians.data.map(g=><div className="history-row" key={g.id||g.guardian_id}><span>{g.guardian_id||g.id}</span>{role==='admin'&&<button className="text-btn danger" onClick={async()=>{await studentsApi.unlinkGuardian(student.id,g.guardian_id||g.id);guardians.refresh()}}>Unlink</button>}</div>):<EmptyState title="No linked guardians"/>}{role==='admin'&&<LinkGuardian student={student} onLinked={guardians.refresh}/>}{role==='admin'&&<ClassAssignment student={student}/>}<h3>Visible notes</h3>{notes.data.map(n=><div className="history-row" key={n.id}><span>{n.note}</span><Badge>{n.visibility}</Badge></div>)}</>}</div>}
 function AttendanceHistory({student}){
   const classes=useApiResource(()=>classesApi.list({limit:100}),[]);
-  const records=useApiResource(()=>attendanceApi.list({student_id:student.id,sort:'date',direction:'desc',limit:100}),[student.id]);
+  const records=useApiResource(()=>listAllAttendanceRows(attendanceApi.list,{student_id:student.id,sort:'date',direction:'desc'}),[student.id]);
   const className=id=>classes.data.find(c=>c.id===id)?.name||id;
   return <section className="related-records">
     <h3>Attendance record</h3>
-    {records.loading?<LoadingState/>:records.error?<ErrorState message={records.error}/>:records.data.length?records.data.map(r=><div className="history-row" key={r.id}><span>{formatDate(r.attendance_date)}</span><span>{className(r.class_id)}</span><Badge tone={r.status.toLowerCase()}>{r.status}</Badge></div>):<EmptyState title="No attendance recorded" text="No attendance has been taken for this student yet."/>}
+    {records.loading?<LoadingState/>:records.error?<ErrorState message={records.error}/>:records.data.length?records.data.map(r=><div className="history-row" key={r.id}><span>{formatDate(r.attendance_date)}</span><span>{className(r.class_id)}</span><Badge tone={r.status.toLowerCase()}>{r.status==='Excused'?'Absent with excuse':r.status}</Badge></div>):<EmptyState title="No attendance recorded" text="No attendance has been taken for this student yet."/>}
   </section>;
 }
 function ClassAssignment({student}){
@@ -98,27 +99,29 @@ function HomeworkSubmissions({homework}){const submissions=useApiResource(()=>ho
 function AssessmentResults({assessment}){const results=useApiResource(()=>assessmentsApi.results(assessment.id),[assessment.id]),[studentId,setStudentId]=useState(''),[score,setScore]=useState(''),[error,setError]=useState('');async function add(){try{const result=await assessmentsApi.createResult(assessment.id,{student_id:studentId,score:Number(score)});results.setData(rows=>[...rows,result.data]);setStudentId('');setScore('')}catch(err){setError(err.message)}}return <section className="related-records"><h3>Results</h3><MutationError error={error}/>{results.data.map(row=><div className="history-row" key={row.student_id}><code>{row.student_id}</code><strong>{row.score??'—'}</strong></div>)}<div className="form-grid"><FormField label="Student UUID"><input value={studentId} onChange={e=>setStudentId(e.target.value)}/></FormField><FormField label="Score"><input type="number" value={score} onChange={e=>setScore(e.target.value)}/></FormField></div><button className="btn btn-secondary" onClick={add}>Add result</button></section>}
 
 const absenceBadgeTone=streak=>streak>=3?'absent':'late';
-function AttendancePage(){
+function AttendancePage({initialClassId=''}){
+ const [classId,setClassId]=useState(initialClassId),[date,setDate]=useState(''),[opened,setOpened]=useState(null),[version,setVersion]=useState(0);
+ const classes=useApiResource(()=>classesApi.list({limit:100}),[]);
+ const history=useApiResource(()=>classId?listAllAttendanceRows(attendanceApi.list,{class_id:classId,sort:'date',direction:'desc'}):Promise.resolve({data:[]}),[classId,version]);
+ return <section className="related-records"><h3>Class registers</h3>{!initialClassId&&<Select label="Class" value={classId} onChange={v=>{setClassId(v);setOpened(null)}}><option value="">Select class</option>{classes.data.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select>}{classes.error&&<MutationError error={classes.error}/>}{classId&&<>{opened?<AttendanceRegister key={classId+opened} initialClassId={classId} registerDate={opened} onClose={()=>{setOpened(null);setVersion(v=>v+1)}}/>:<><FormField label="Register date"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></FormField><button className="btn btn-primary" disabled={!date} onClick={()=>setOpened(date)}>New register</button><p>Each date has its own register. Choose a saved date to correct that day's attendance.</p>{history.loading?<LoadingState/>:history.error?<ErrorState message={history.error}/>:history.data.length?[...new Set(history.data.map(r=>r.attendance_date))].map(day=><div className="history-row" key={day}><span>{formatDate(day)}</span><button className="btn btn-secondary" onClick={()=>setOpened(day)}>Open register</button></div>):<EmptyState title="No saved registers"/>}</>}</>}</section>
+}
+function AttendanceRegister({initialClassId,registerDate,onClose}){
   const classes=useApiResource(()=>classesApi.list({limit:100}),[]);
-  const [classId,setClassId]=useState('');
-  const [date,setDate]=useState(new Date().toISOString().slice(0,10));
+  const classId=initialClassId;
+  const date=registerDate;
   const [statuses,setStatuses]=useState({});
   const [saving,setSaving]=useState(false);
   const [message,setMessage]=useState('');
-  useEffect(()=>{if(!classId&&classes.data[0])setClassId(classes.data[0].id)},[classes.data,classId]);
-  const students=useApiResource(()=>classId?studentsApi.list({class_id:classId,limit:100}):Promise.resolve({data:[]}),[classId]);
-  const records=useApiResource(()=>classId?attendanceApi.list({class_id:classId,date_from:date,date_to:date,limit:100}):Promise.resolve({data:[]}),[classId,date]);
+
+  const students=useApiResource(()=>classId?listAllAttendanceRows(studentsApi.list,{class_id:classId}):Promise.resolve({data:[]}),[classId]);
+  const records=useApiResource(()=>classId?listAllAttendanceRows(attendanceApi.list,{class_id:classId,attendance_date:date}):Promise.resolve({data:[]}),[classId,date]);
   useEffect(()=>{const next={};students.data.forEach(s=>{const existing=records.data.find(r=>r.student_id===s.id);if(existing)next[s.id]=existing.status});setStatuses(next)},[students.data,records.data]);
   async function save(){
     const marked=students.data.filter(student=>statuses[student.id]!==undefined);
     if(!marked.length){setMessage('Mark at least one student before saving.');return}
     setSaving(true);setMessage('');
     try{
-      for(const student of marked){
-        const existing=records.data.find(r=>r.student_id===student.id);
-        if(existing)await attendanceApi.update(existing.id,{status:statuses[student.id]});
-        else await attendanceApi.create({class_id:classId,student_id:student.id,attendance_date:date,status:statuses[student.id]});
-      }
+      await saveRegister(attendanceApi,{classId,date,students:students.data,statuses});
       await records.refresh();
       setMessage(`Attendance saved for ${marked.length} student${marked.length===1?'':'s'}.`);
     }catch(err){setMessage(err.message)}
@@ -127,19 +130,18 @@ function AttendancePage(){
   const summary=['Present','Absent','Excused'].map(status=>[status,students.data.filter(s=>statuses[s.id]===status).length]);
   const unmarkedCount=students.data.filter(s=>statuses[s.id]===undefined).length;
   return <div>
-    <PageHeader eyebrow="Academic" title="Attendance" description="Load assigned students and save the weekly register."/>
+    <PageHeader eyebrow="Academic" title="Attendance" description="Mark every student and save attendance for this date."/>
     <section className="surface">
       <div className="attendance-controls">
-        <Select label="Class" value={classId} onChange={setClassId}><option value="">Select class</option>{classes.data.map(c=><option value={c.id} key={c.id}>{c.name}</option>)}</Select>
-        <FormField label="Date"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></FormField>
+        <strong>{classes.data.find(c=>c.id===classId)?.name} ? {formatDate(date)}</strong>
       </div>
-      <MutationError error={message}/>
+      <p role="status">{message}</p><button className="btn btn-secondary" disabled={saving} onClick={()=>{if(confirm("Close this register? Unsaved changes will be lost."))onClose()}}>Back to registers</button>
       {students.loading||records.loading?<LoadingState/>:students.error||records.error?<ErrorState message={students.error||records.error}/>:students.data.length?<>
         <div className="attendance-summary">{summary.map(([status,count])=><Badge tone={status.toLowerCase()} key={status}>{status}: {count}</Badge>)}{unmarkedCount>0&&<Badge key="unmarked">Not yet marked: {unmarkedCount}</Badge>}</div>
         <div className="register">
           <header><span>Student</span><span>Attendance status</span></header>
-          {students.data.map(s=><div key={s.id}><span className="person-cell"><Avatar name={fullName(s)} size="xs"/><strong>{fullName(s)}</strong></span><div className="status-picker">{['Present','Absent','Excused'].map(status=><button key={status} className={statuses[s.id]===status?'active':''} onClick={()=>setStatuses({...statuses,[s.id]:status})}>{status}</button>)}</div></div>)}
-          <footer className="sticky-actions"><button className="btn btn-primary" disabled={saving} onClick={save}>{saving?'Saving…':'Save attendance'}</button></footer>
+          {students.data.map(s=><div key={s.id}><span className="person-cell"><Avatar name={fullName(s)} size="xs"/><strong>{fullName(s)}</strong></span><div className="status-picker">{['Present','Absent','Excused'].map(status=><button key={status} className={statuses[s.id]===status?'active':''} disabled={saving} aria-pressed={statuses[s.id]===status} onClick={()=>setStatuses({...statuses,[s.id]:status})}>{status==='Excused'?'Absent with excuse':status}</button>)}</div></div>)}
+          <footer className="sticky-actions"><button className="btn btn-primary" disabled={saving} onClick={save}>{saving?'Saving…':'Save register'}</button></footer>
         </div>
       </>:<EmptyState title="No assigned students" text="This class has no visible students."/>}
     </section>
