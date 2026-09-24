@@ -11,7 +11,9 @@ export const createFamily=route(async(request:NextRequest)=>{
  const c=await requireAdmin(request),body=await jsonBody(request);assertAllowedFields(body,['guardian_id','guardian','children']);
  if(body.guardian_id!==undefined&&body.guardian!==undefined)throw new ApiError(400,'VALIDATION_ERROR','Supply either guardian_id or guardian, not both.');
  const rawChildren=body.children===undefined?[]:body.children;if(!Array.isArray(rawChildren)||rawChildren.length>20)throw new ApiError(400,'VALIDATION_ERROR','children must be a list of at most 20 children.');
- const children=rawChildren.map((child,i)=>{if(!child||typeof child!=='object'||Array.isArray(child))throw new ApiError(400,'VALIDATION_ERROR',`Child ${i+1} is invalid.`);const b=child as Record<string,unknown>;assertAllowedFields(b,childFields);return students.create(b,c.profile.id)});
+ const children=rawChildren.map((child,i)=>{if(!child||typeof child!=='object'||Array.isArray(child))throw new ApiError(400,'VALIDATION_ERROR',`Child ${i+1} is invalid.`);const b=child as Record<string,unknown>;assertAllowedFields(b,childFields);
+  // Drop unset keys: a multi-row insert sends a missing key as null, which would bypass column defaults such as enrolment_date.
+  return Object.fromEntries(Object.entries(students.create(b,c.profile.id)).filter(entry=>entry[1]!==undefined))});
  let guardianRow:any,createdGuardianId:string|null=null;
  if(body.guardian_id!==undefined){guardianRow=await one(c.supabase.from('guardians').select('*').eq('id',ensureUuid(body.guardian_id,'guardian_id')).maybeSingle())}
  else{if(!body.guardian||typeof body.guardian!=='object'||Array.isArray(body.guardian))throw new ApiError(400,'VALIDATION_ERROR','guardian is required.');const g=body.guardian as Record<string,unknown>;assertAllowedFields(g,guardians.writeFields);guardianRow=await mutate(c.supabase.from('guardians').insert(guardians.create(g,c.profile.id)).select().single());createdGuardianId=guardianRow.id}
