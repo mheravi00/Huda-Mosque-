@@ -1,7 +1,7 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Huda Mosque Madrasa',
+  title: 'Huda Tarbiyah Portal',
   description: 'Madrasa management, attendance, homework, assessments, and reports.',
 };
 
