@@ -186,10 +186,10 @@ function TeacherRelations({teacher}){
   const assigned=useApiResource(()=>teachersApi.classes(teacher.id),[teacher.id]),classes=useApiResource(()=>classesApi.list({limit:100}),[]);
   const[classId,setClassId]=useState(''),[error,setError]=useState(''),[saving,setSaving]=useState(false);
   const assignedIds=new Set(assigned.data.map(row=>row.class_id));
-  async function assign(){setSaving(true);setError('');try{await classesApi.assignTeacher(classId,teacher.id);setClassId('');await assigned.refresh()}catch(err){setError(err.message)}finally{setSaving(false)}}
+  async function assign(){setSaving(true);setError('');try{try{await classesApi.assignTeacher(classId,teacher.id)}catch(err){if(err.status!==409)throw err}setClassId('');await assigned.refresh()}catch(err){setError(err.message)}finally{setSaving(false)}}
   async function remove(id){setError('');try{await classesApi.removeTeacher(id,teacher.id);assigned.setData(rows=>rows.filter(x=>x.class_id!==id))}catch(err){setError(err.message)}}
   return <section className="related-records"><h3>Assigned classes</h3><MutationError error={error}/>
-    {assigned.loading?<LoadingState/>:assigned.data.length?assigned.data.map(row=><div className="history-row" key={row.class_id}><span>{row.classes?classLabel(row.classes):row.class_id}</span><button className="text-btn danger" onClick={()=>remove(row.class_id)}>Remove</button></div>):<EmptyState title="No assigned classes"/>}
+    {assigned.loading?<LoadingState/>:assigned.error?<ErrorState message={assigned.error} onRetry={()=>assigned.refresh().catch(()=>{})}/>:assigned.data.length?assigned.data.map(row=><div className="history-row" key={row.class_id}><span>{row.classes?classLabel(row.classes):row.class_id}</span><button className="text-btn danger" onClick={()=>remove(row.class_id)}>Remove</button></div>):<EmptyState title="No assigned classes"/>}
     <FormField label="Assign class"><select value={classId} onChange={e=>setClassId(e.target.value)} disabled={classes.loading}><option value="">{classes.loading?'Loading classes…':'Select class'}</option>{classes.data.filter(c=>!assignedIds.has(c.id)).map(c=><option value={c.id} key={c.id}>{classLabel(c)}</option>)}</select></FormField>
     <button className="btn btn-secondary" disabled={!classId||saving} onClick={assign}>{saving?'Assigning…':'Assign class'}</button>
   </section>
