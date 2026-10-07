@@ -11,6 +11,7 @@ export type Profile = { id:string; auth_user_id:string; role:'admin'|'teacher'; 
 export type AuthContext = { token:string; user:User; profile:Profile; supabase:SupabaseClient };
 
 export function createSupabaseAdminClient() { if(!url||!secret)throw new Error('Missing Supabase server configuration.');return createClient(url,secret,authOptions); }
+export function createSupabasePublicClient() { if(!url||!publishableKey)throw new Error('Missing Supabase server configuration.');return createClient(url,publishableKey,authOptions); }
 export function createSupabaseUserClient(accessToken:string) { if(!url||!publishableKey)throw new Error('Missing Supabase server configuration.');return createClient(url,publishableKey,{...authOptions,global:{headers:{Authorization:`Bearer ${accessToken}`}}}); }
 export function bearerToken(request:NextRequest){const header=request.headers.get('authorization')||'';return header.startsWith('Bearer ')?header.slice(7).trim():'';}
 export async function requireUser(request:NextRequest):Promise<AuthContext>{

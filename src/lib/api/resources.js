@@ -1,4 +1,4 @@
-import { api, apiRequest } from './client';
+import { api, apiRequest, publicRequest } from './client';
 
 const collection = path => ({
   list: params => api.get(path, params),
@@ -12,6 +12,8 @@ export const studentsApi = { ...collection('/api/students'), admin: collection('
 export const guardiansApi = { ...collection('/api/guardians'), admin: collection('/api/admin/guardians'), children: id => api.get(`/api/admin/guardians/${id}/children`) };
 export const familiesApi = { create: body => api.post('/api/admin/families', body) };
 export const teachersApi = { admin: collection('/api/admin/teachers'), classes: id => api.get(`/api/admin/teachers/${id}/classes`) };
+export const teacherRequestsApi = { list: () => api.get('/api/admin/teacher-requests'), approve: (id, class_ids) => api.post(`/api/admin/teacher-requests/${id}`, { class_ids }), reject: id => api.delete(`/api/admin/teacher-requests/${id}`) };
+export const authApi = { login: body => publicRequest('/api/auth/login', body), requestTeacherAccount: body => publicRequest('/api/auth/teacher-signup', body) };
 export const subjectsApi = { ...collection('/api/subjects'), admin: collection('/api/admin/subjects') };
 export const classesApi = { ...collection('/api/classes'), admin: collection('/api/admin/classes'), students: id => api.get(`/api/admin/classes/${id}/students`), assignStudent: (id, student_id, override_reason) => api.post(`/api/admin/classes/${id}/students`, override_reason ? { student_id, override_reason } : { student_id }), removeStudent: (id, studentId) => api.delete(`/api/admin/classes/${id}/students/${studentId}`), teachers: id => api.get(`/api/admin/classes/${id}/teachers`), assignTeacher: (id, teacher_id) => api.post(`/api/admin/classes/${id}/teachers`, { teacher_id }), removeTeacher: (id, teacherId) => api.delete(`/api/admin/classes/${id}/teachers/${teacherId}`) };
 export const attendanceApi = { ...collection('/api/attendance'), absenceSummary: params => api.get('/api/attendance/absence-summary', params), notify: body => api.post('/api/attendance/notify', body) };

@@ -40,6 +40,18 @@ export async function apiRequest(path, options = {}) {
   return payload || { data: null };
 }
 
+// For endpoints used before sign-in (login, teacher account requests).
+export async function publicRequest(path, body) {
+  const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', body: JSON.stringify(body) });
+  let payload;
+  try { payload = await response.json(); } catch { payload = null; }
+  if (!response.ok) {
+    const error = payload?.error;
+    throw new ApiError(response.status, error?.code || 'REQUEST_FAILED', error?.message || 'The request could not be completed.');
+  }
+  return payload || { data: null };
+}
+
 export const api = {
   get: (path, params) => apiRequest(`${path}${queryString(params)}`),
   post: (path, body) => apiRequest(path, { method: 'POST', body }),
