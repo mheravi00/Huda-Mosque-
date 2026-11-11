@@ -1,6 +1,6 @@
 'use client';
 import{ChevronDown,ChevronLeft,ChevronRight,Search,X}from'lucide-react';
-export function Avatar({name,size='md'}){return <span className={`avatar avatar-${size}`}>{name.split(' ').filter(Boolean).slice(0,2).map(x=>x[0]).join('')}</span>}
+export function Avatar({name,size='md',tone}){return <span className={`avatar avatar-${size}${tone?` avatar-${tone}`:''}`} aria-hidden="true">{name.split(' ').filter(Boolean).slice(0,2).map(x=>x[0]).join('')}</span>}
 export function Badge({children,tone}){const key=tone||String(children).toLowerCase().replaceAll(' ','-');return <span className={`badge badge-${key}`}>{children}</span>}
 export function PageHeader({title,description,action,onAction}){return <div className="page-heading"><div><h1>{title}</h1>{description&&<p>{description}</p>}</div>{action&&<button className="btn btn-primary" onClick={onAction}>{action}</button>}</div>}
 export function SearchBox({value,onChange,placeholder='Search…'}){return <label className="search-box"><Search size={17}/><input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}/></label>}

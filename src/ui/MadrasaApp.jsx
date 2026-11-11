@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { BarChart3, Bell, BookOpen, CalendarDays, ChevronDown, ChevronRight, ClipboardCheck, Download, Eye, EyeOff, FileText, GraduationCap, Home, LogOut, Mail, Menu, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, School, Search, Settings, ShieldAlert, Upload, Users, X } from 'lucide-react';
+import { BarChart3, Bell, BookOpen, CalendarDays, ChevronDown, ChevronRight, ClipboardCheck, Download, Eye, EyeOff, FileText, GraduationCap, Home, LogOut, Mail, Menu, MessageSquare, PanelLeftClose, PanelLeftOpen, Pencil, Phone, Plus, School, Search, Send, Settings, ShieldAlert, Trash2, Upload, Users, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { ApiError } from '../lib/api/client';
 import { assessmentsApi, attendanceApi, authApi, calendarApi, classesApi, familiesApi, guardiansApi, homeworkApi, messagesApi, messageTemplatesApi, notesApi, notificationsApi, reportRequestsApi, reportsApi, settingsApi, storageApi, studentsApi, subjectsApi, teacherRequestsApi, teachersApi } from '../lib/api/resources';
@@ -138,9 +138,149 @@ function GuardianChildren({guardian}){
 }
 function DirectoryPage({type,role}){const c=domainConfig[type],[search,setSearch]=useState(''),[page,setPage]=useState(1),[editing,setEditing]=useState(null),[creating,setCreating]=useState(false),[mutationError,setMutationError]=useState('');const debounced=useDebounced(search);const resource=useApiResource(()=>c.loader(role,{page,limit:25,search:debounced||undefined}),[type,role,page,debounced]);const writeApi=c.adminApi||(c.api);const canWrite=role==='admin'||!['students','classes','report-requests'].includes(type);async function save(body){const wasCreating=!editing;const response=editing?await writeApi.update(editing.id,body):await writeApi.create(body);resource.setData(rows=>type==='teachers'&&body.role==='admin'?rows:editing?rows.map(x=>x.id===editing.id?response.data:x):[response.data,...rows]);setCreating(false);if(type==='students'&&wasCreating)setEditing(response.data);else setEditing(null);resource.refresh().catch(error=>setMutationError(error.message||'The record was saved, but the list could not be refreshed.'))}async function remove(record){if(!confirm(`Confirm removal of ${fullName(record)||record.name}?`))return;setMutationError('');try{await writeApi.remove(record.id);resource.setData(rows=>rows.filter(x=>x.id!==record.id))}catch(err){setMutationError(err.message)}}async function toggleActive(record){setMutationError('');try{const response=await writeApi.update(record.id,{active:!record.active});resource.setData(rows=>rows.map(x=>x.id===record.id?response.data:x))}catch(err){setMutationError(err.message)}}const columns=c.columns.map(([key,label])=>({key,label,render:r=>type==='classes'&&key==='active'&&role==='admin'?<button type="button" className={`status-toggle ${r.active?'on':'off'}`} role="switch" aria-checked={!!r.active} title={r.active?'Click to make inactive':'Click to make active'} onClick={e=>{e.stopPropagation();toggleActive(r)}}><span/>{r.active?'Active':'Inactive'}</button>:renderCell(r,key)}));return <div><PageHeader eyebrow="Live records" title={c.title} description={c.description} action={canWrite?c.action:null} onAction={()=>setCreating(true)}/><div className="surface data-surface"><div className="filter-bar"><SearchBox value={search} onChange={v=>{setSearch(v);setPage(1)}} placeholder={`Search ${c.title.toLowerCase()}…`}/></div><MutationError error={mutationError}/>{resource.loading?<LoadingState/>:resource.error?<ErrorState message={resource.error} onRetry={()=>resource.refresh().catch(()=>{})}/>:resource.data.length?<><DataTable columns={columns} rows={resource.data} onRow={setEditing} onAction={canWrite?(action,row)=>action==='Archive'?remove(row):setEditing(row):null}/><Pagination meta={resource.meta} onPage={setPage}/></>:<EmptyState title={`No ${c.title.toLowerCase()} found`} text={search?'No records match this search.':'No records have been added yet.'}/>}</div><Modal open={creating||!!editing} title={editing?(type==='students'&&editing.student_id?`Student ${editing.student_id}`:type==='teachers'?'Staff account details':`${c.title.slice(0,-1)} details`):c.action} onClose={()=>{setCreating(false);setEditing(null)}}>{creating&&!editing&&['students','guardians'].includes(type)?<FamilyForm allowExisting={type==='students'} onSaved={()=>resource.refresh().catch(error=>setMutationError(error.message))} onClose={()=>setCreating(false)}/>:(creating||editing)&&<><RecordForm config={c} record={editing} onSave={save} onClose={()=>{setCreating(false);setEditing(null)}}/>{editing&&<RelatedRecords type={type} record={editing} role={role}/>}</>}</Modal></div>}
 
+// ---- Students workspace: roster on the left, a details panel on the right ----
+const attendanceStats=rows=>{
+  const count=status=>rows.filter(r=>r.status===status).length;
+  const present=count('Present'),late=count('Late'),absent=count('Absent'),excused=count('Excused');
+  const counted=present+late+absent;
+  return{present,late,absent,excused,counted,attended:present+late,rate:counted?Math.round((present+late)/counted*100):null};
+};
+const rateTone=rate=>rate==null?'none':rate>=90?'good':rate>=80?'fair':'poor';
+const studentClassName=s=>s?.class_students?.map(x=>x.classes?.name).filter(Boolean).join(', ')||'';
+const avatarTone=s=>s?.gender==='female'?'rose':s?.gender==='male'?'sage':undefined;
+
+function PanelPlaceholder({icon:Icon,title,text}){
+  return <aside className="detail-panel panel-placeholder"><span className="placeholder-icon"><Icon size={22}/></span><h2>{title}</h2><p>{text}</p></aside>;
+}
+
+function StudentsPage({role}){
+  const isAdmin=role==='admin';
+  const [search,setSearch]=useState(''),[page,setPage]=useState(1),[selected,setSelected]=useState(null),[editing,setEditing]=useState(null),[creating,setCreating]=useState(false),[error,setError]=useState('');
+  const debounced=useDebounced(search);
+  const resource=useApiResource(()=>(isAdmin?studentsApi.admin:studentsApi).list({page,limit:25,search:debounced||undefined}),[role,page,debounced]);
+  async function save(body){
+    const response=await studentsApi.admin.update(editing.id,body);
+    const merge=s=>s.id===editing.id?{...s,...response.data}:s;
+    resource.setData(rows=>rows.map(merge));
+    setSelected(s=>s&&merge(s));
+  }
+  function closeEditor(){setEditing(null);resource.refresh().then(r=>setSelected(s=>s&&(r.data.find(x=>x.id===s.id)||s))).catch(()=>{})}
+  async function remove(student){
+    if(!confirm(`Remove ${fullName(student)} from enrolment? Their record will be archived.`))return;
+    setError('');
+    try{await studentsApi.admin.remove(student.id);resource.setData(rows=>rows.filter(x=>x.id!==student.id));setSelected(null)}
+    catch(err){setError(err.message)}
+  }
+  const select=s=>setSelected(current=>current?.id===s.id?null:s);
+  return <div>
+    <PageHeader title="Students" description="Enrolment, class placement and progress at a glance." action={isAdmin?'Add student':null} onAction={()=>setCreating(true)}/>
+    <MutationError error={error}/>
+    <div className={`workspace ${selected?'has-selection':''}`}>
+      <section className="surface data-surface">
+        <div className="filter-bar">
+          <SearchBox value={search} onChange={v=>{setSearch(v);setPage(1)}} placeholder="Search by name or student ID…"/>
+          {resource.meta?.total!=null&&<span className="count-label">{resource.meta.total} student{resource.meta.total===1?'':'s'}</span>}
+        </div>
+        {resource.loading&&!resource.data.length?<LoadingState/>:resource.error?<ErrorState message={resource.error} onRetry={()=>resource.refresh().catch(()=>{})}/>:resource.data.length?<>
+          <div className="table-wrap"><table className="table roster-table">
+            <thead><tr><th>Student</th><th>Class</th><th>Age</th><th>Status</th><th>Enrolled</th></tr></thead>
+            <tbody>{resource.data.map(s=>{const cls=studentClassName(s);return <tr key={s.id} tabIndex={0} aria-selected={selected?.id===s.id} className={`clickable ${selected?.id===s.id?'selected':''}`} onClick={()=>select(s)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select(s)}}}>
+              <td><span className="person-cell"><Avatar name={fullName(s)} size="sm" tone={avatarTone(s)}/><span><strong>{fullName(s)}</strong><small className="mono">{s.student_id||'—'}</small></span></span></td>
+              <td>{cls?<span className="class-pill">{cls}</span>:<span className="muted">Unassigned</span>}</td>
+              <td>{computeAge(s.date_of_birth)??'—'}</td>
+              <td><Badge>{statusLabel(s.status)}</Badge></td>
+              <td className="muted">{formatDate(s.enrolment_date)}</td>
+            </tr>})}</tbody>
+          </table></div>
+          <Pagination meta={resource.meta} onPage={setPage}/>
+        </>:<EmptyState title="No students found" text={search?'No students match this search.':'No students have been added yet.'}/>}
+      </section>
+      {selected?<StudentPanel key={selected.id} student={selected} role={role} onClose={()=>setSelected(null)} onEdit={()=>setEditing(selected)} onRemove={()=>remove(selected)}/>:<PanelPlaceholder icon={Users} title="Select a student" text="Choose a student from the list to see attendance, reports and guardian contacts."/>}
+    </div>
+    <Modal open={creating} title="Add student" onClose={()=>setCreating(false)}>{creating&&<FamilyForm allowExisting onSaved={()=>resource.refresh().catch(err=>setError(err.message))} onClose={()=>setCreating(false)}/>}</Modal>
+    <Modal open={!!editing} title={editing?`Edit ${fullName(editing)}`:''} onClose={closeEditor}>{editing&&<><RecordForm config={domainConfig.students} record={editing} onSave={save} onClose={closeEditor}/><StudentRelations student={editing} role={role}/></>}</Modal>
+  </div>;
+}
+
+function StudentPanel({student,role,onClose,onEdit,onRemove}){
+  const [tab,setTab]=useState('Overview'),[openReport,setOpenReport]=useState(null),[reportError,setReportError]=useState('');
+  const guardians=useApiResource(()=>studentsApi.guardians(student.id),[student.id]);
+  const attendance=useApiResource(()=>listAllAttendanceRows(attendanceApi.list,{student_id:student.id,sort:'date',direction:'desc'}),[student.id]);
+  const reports=useApiResource(()=>reportsApi.list({student_id:student.id,limit:25,sort:'created_at',direction:'desc'}),[student.id]);
+  const classes=useApiResource(()=>classesApi.list({limit:100}),[]);
+  const className=id=>classes.data.find(c=>c.id===id)?.name||'Class';
+  const stats=attendanceStats(attendance.data);
+  const latest=reports.data[0];
+  const contacts=guardians.data.map(g=>g.guardians).filter(Boolean);
+  const emailContact=contacts.find(g=>g.email);
+  const cls=studentClassName(student);
+  async function transition(report,status){
+    setReportError('');
+    try{const response=await reportsApi.update(report.id,{status});reports.setData(rows=>rows.map(x=>x.id===report.id?response.data:x));setOpenReport(response.data)}
+    catch(err){setReportError(err.message)}
+  }
+  return <aside className="detail-panel" aria-label={`${fullName(student)} details`}>
+    <header className="panel-head">
+      <Avatar name={fullName(student)} size="lg" tone="gold"/>
+      <div><h2>{fullName(student)}</h2><p>{[cls||'No class yet',student.student_id].filter(Boolean).join(' · ')}</p></div>
+      <button className="icon-btn" onClick={onClose} aria-label="Close details"><X size={17}/></button>
+    </header>
+    <div className="panel-tabs" role="tablist">{['Overview','Attendance','Reports'].map(t=><button key={t} role="tab" aria-selected={tab===t} className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}</div>
+
+    {tab==='Overview'&&<>
+      <div className="stat-pair">
+        <article><span className="eyebrow">Attendance</span><strong className={`tone-${rateTone(stats.rate)}`}>{attendance.loading?'…':stats.rate==null?'—':`${stats.rate}%`}</strong><small>{stats.counted?`${stats.attended} of ${stats.counted} sessions`:'No sessions recorded'}</small></article>
+        <article><span className="eyebrow">Last report</span><strong>{reports.loading?'…':latest?latest.report_period:'None'}</strong><small>{latest?latest.status:'Nothing on file'}</small></article>
+      </div>
+      <section className="panel-section">
+        <h3 className="eyebrow">Parent / guardian</h3>
+        {guardians.loading?<LoadingState/>:contacts.length?contacts.map((g,i)=><div className="contact-card" key={g.id}>
+          <div><strong>{fullName(g)}</strong><small>{[i===0?'Primary contact':null,g.relationship].filter(Boolean).join(' · ')}</small></div>
+          <span>
+            {g.email&&<a className="icon-btn" href={`mailto:${g.email}`} title={g.email} aria-label={`Email ${fullName(g)}`}><Mail size={15}/></a>}
+            {g.phone&&<a className="icon-btn" href={`tel:${g.phone}`} title={g.phone} aria-label={`Call ${fullName(g)}`}><Phone size={15}/></a>}
+          </span>
+        </div>):<p className="panel-empty">No guardian linked yet.</p>}
+      </section>
+      <section className="panel-section">
+        <h3 className="eyebrow">Details</h3>
+        <dl className="panel-details">
+          <div><dt>Age</dt><dd>{computeAge(student.date_of_birth)??'—'}</dd></div>
+          <div><dt>Date of birth</dt><dd>{formatDate(student.date_of_birth)}</dd></div>
+          <div><dt>Gender</dt><dd>{statusLabel(student.gender)}</dd></div>
+          <div><dt>Enrolled</dt><dd>{formatDate(student.enrolment_date)}</dd></div>
+          {student.address&&<div className="wide"><dt>Address</dt><dd>{student.address}</dd></div>}
+        </dl>
+      </section>
+      <section className="panel-section">
+        <h3 className="eyebrow">Quick actions</h3>
+        <div className="action-grid">
+          <button onClick={()=>setTab('Reports')}><FileText size={15}/>Reports</button>
+          <button onClick={()=>setTab('Attendance')}><CalendarDays size={15}/>Attendance</button>
+          {role==='admin'&&<button onClick={onEdit}><Pencil size={15}/>Edit details</button>}
+          {emailContact?<a href={`mailto:${emailContact.email}?subject=${encodeURIComponent(`About ${fullName(student)}`)}`}><Send size={15}/>Message parent</a>:<button disabled title="No guardian email on file"><Send size={15}/>Message parent</button>}
+        </div>
+      </section>
+      {role==='admin'&&<><div className="ornament" aria-hidden="true"><span/></div><button className="btn-remove" onClick={onRemove}><Trash2 size={15}/>Remove from enrolment</button></>}
+    </>}
+
+    {tab==='Attendance'&&<section className="panel-section">
+      <div className="tally">{[['Present',stats.present],['Late',stats.late],['Absent',stats.absent],['Excused',stats.excused]].map(([label,value])=><span key={label} className={`tally-${label.toLowerCase()}`}><strong>{value}</strong><small>{label}</small></span>)}</div>
+      {stats.rate!=null&&<div className="meter" title={`${stats.rate}% attendance`}><span className={`meter-${rateTone(stats.rate)}`} style={{width:`${stats.rate}%`}}/></div>}
+      {attendance.loading?<LoadingState/>:attendance.error?<ErrorState message={attendance.error}/>:attendance.data.length?<ul className="record-list">{attendance.data.map(r=><li key={r.id}><div><strong>{formatDate(r.attendance_date)}</strong><small>{className(r.class_id)}</small></div><Badge tone={r.status.toLowerCase()}>{r.status}</Badge></li>)}</ul>:<p className="panel-empty">No attendance has been taken for this student yet.</p>}
+    </section>}
+
+    {tab==='Reports'&&<section className="panel-section">
+      {reports.loading?<LoadingState/>:reports.error?<ErrorState message={reports.error}/>:reports.data.length?<ul className="record-list">{reports.data.map(r=><li key={r.id}><button onClick={()=>setOpenReport(r)}><div><strong>{r.report_period}</strong><small>Created {formatDate(r.created_at)}</small></div><Badge>{r.status}</Badge><ChevronRight size={15}/></button></li>)}</ul>:<p className="panel-empty">No reports have been written for this student yet.</p>}
+    </section>}
+
+    <Modal open={!!openReport} title={openReport?`${fullName(student)} — ${openReport.report_period}`:''} onClose={()=>setOpenReport(null)}><MutationError error={reportError}/>{openReport&&<ReportDetail report={openReport} role={role} onTransition={transition}/>}</Modal>
+  </aside>;
+}
+
 function RelatedRecords({type,record,role}){if(type==='students')return <StudentRelations student={record} role={role}/>;if(type==='classes')return <><AttendancePage initialClassId={record.id} role={role}/>{role==='admin'&&<ClassRelations classRecord={record}/>}</>;if(type==='guardians'&&role==='admin')return <GuardianChildren guardian={record}/>;if(type==='teachers'&&role==='admin')return <TeacherRelations teacher={record}/>;if(type==='homework')return <HomeworkSubmissions homework={record}/>;if(type==='assessments')return <AssessmentResults assessment={record}/>;return null}
 function RelationList({title,resource,idKey,onAdd,onRemove}){const[value,setValue]=useState(''),[error,setError]=useState('');async function add(){setError('');try{await onAdd(value);setValue('');await resource.refresh()}catch(err){setError(err.message)}}async function remove(id){setError('');try{await onRemove(id);resource.setData(rows=>rows.filter(x=>x[idKey]!==id))}catch(err){setError(err.message)}}return <section className="relation-panel"><h3>{title}</h3><MutationError error={error}/>{resource.loading?<LoadingState/>:resource.data.map(row=><div className="history-row" key={row[idKey]}><code>{row[idKey]}</code><button className="text-btn danger" onClick={()=>remove(row[idKey])}>Remove</button></div>)}<div className="inline-actions"><input value={value} onChange={e=>setValue(e.target.value)} placeholder={`${title.slice(0,-1)} UUID`}/><button className="btn btn-secondary" disabled={!value} onClick={add}>Assign</button></div></section>}
-function StudentRelations({student,role}){const [tab,setTab]=useState("Details");const guardians=useApiResource(()=>studentsApi.guardians(student.id),[student.id]),notes=useApiResource(()=>notesApi.list(student.id),[student.id]);return <div className="related-records"><Tabs items={["Details","Attendance"]} active={tab} onChange={setTab}/>{tab==="Attendance"?<AttendanceHistory key={student.id} student={student}/>:<><h3>Guardians</h3>{guardians.loading?<LoadingState/>:guardians.data.length?guardians.data.map(g=><div className="history-row" key={g.id||g.guardian_id}><span>{g.guardian_id||g.id}</span>{role==='admin'&&<button className="text-btn danger" onClick={async()=>{await studentsApi.unlinkGuardian(student.id,g.guardian_id||g.id);guardians.refresh()}}>Unlink</button>}</div>):<EmptyState title="No linked guardians"/>}{role==='admin'&&<LinkGuardian student={student} onLinked={guardians.refresh}/>}{role==='admin'&&<ClassAssignment student={student}/>}<h3>Visible notes</h3>{notes.data.map(n=><div className="history-row" key={n.id}><span>{n.note}</span><Badge>{n.visibility}</Badge></div>)}</>}</div>}
+function StudentRelations({student,role}){const [tab,setTab]=useState("Details");const guardians=useApiResource(()=>studentsApi.guardians(student.id),[student.id]),notes=useApiResource(()=>notesApi.list(student.id),[student.id]);return <div className="related-records"><Tabs items={["Details","Attendance"]} active={tab} onChange={setTab}/>{tab==="Attendance"?<AttendanceHistory key={student.id} student={student}/>:<><h3>Guardians</h3>{guardians.loading?<LoadingState/>:guardians.data.length?guardians.data.map(g=><div className="history-row" key={g.id||g.guardian_id}><span>{g.guardians?<><strong>{fullName(g.guardians)}</strong>{g.guardians.relationship&&<small className="cell-sub">{g.guardians.relationship}</small>}</>:g.guardian_id||g.id}</span>{role==='admin'&&<button className="text-btn danger" onClick={async()=>{await studentsApi.unlinkGuardian(student.id,g.guardian_id||g.id);guardians.refresh()}}>Unlink</button>}</div>):<EmptyState title="No linked guardians"/>}{role==='admin'&&<LinkGuardian student={student} onLinked={guardians.refresh}/>}{role==='admin'&&<ClassAssignment student={student}/>}<h3>Visible notes</h3>{notes.data.map(n=><div className="history-row" key={n.id}><span>{n.note}</span><Badge>{n.visibility}</Badge></div>)}</>}</div>}
 function AttendanceHistory({student}){
   const classes=useApiResource(()=>classesApi.list({limit:100}),[]);
   const records=useApiResource(()=>listAllAttendanceRows(attendanceApi.list,{student_id:student.id,sort:'date',direction:'desc'}),[student.id]);
@@ -328,9 +468,92 @@ function BracketReviewPage(){const review=useApiResource(()=>studentsApi.bracket
 function NotesForm(){const students=useApiResource(()=>studentsApi.list({limit:100}),[]),[studentId,setStudentId]=useState(''),[note,setNote]=useState(''),[visibility,setVisibility]=useState('Teacher + Admin'),[saving,setSaving]=useState(false),[error,setError]=useState('');useEffect(()=>{if(!studentId&&students.data[0])setStudentId(students.data[0].id)},[students.data,studentId]);const notes=useApiResource(()=>studentId?notesApi.list(studentId):Promise.resolve({data:[]}),[studentId]);async function create(){setSaving(true);setError('');try{await notesApi.create(studentId,{note,visibility});setNote('');await notes.refresh()}catch(err){setError(err.message)}finally{setSaving(false)}}async function edit(item){const value=prompt('Edit note',item.note);if(value===null)return;try{const result=await notesApi.update(item.id,{note:value});notes.setData(rows=>rows.map(x=>x.id===item.id?result.data:x))}catch(err){setError(err.message)}}async function remove(item){if(!confirm('Delete this note?'))return;try{await notesApi.remove(item.id);notes.setData(rows=>rows.filter(x=>x.id!==item.id))}catch(err){setError(err.message)}}return <div><PageHeader eyebrow="Teaching" title="Student Notes" description="Notes are returned according to database visibility rules."/><div className="filter-bar surface"><Select label="Student" value={studentId} onChange={setStudentId}>{students.data.map(s=><option value={s.id} key={s.id}>{fullName(s)}</option>)}</Select></div><section className="surface settings-form"><MutationError error={error}/><FormField label="New note"><textarea rows="4" value={note} onChange={e=>setNote(e.target.value)}/></FormField><Select label="Visibility" value={visibility} onChange={setVisibility}><option>Teacher + Admin</option></Select><button className="btn btn-primary" disabled={!note||saving} onClick={create}>{saving?'Saving…':'Add note'}</button></section>{notes.loading?<LoadingState/>:<div className="note-list">{notes.data.map(n=><article className="surface note-card" key={n.id}><Badge tone={n.visibility==='Admin Only'?'admin-only':'teacher-admin'}>{n.visibility}</Badge><ActionMenu onAction={action=>action==='Archive'?remove(n):edit(n)}/><p>{n.note}</p><small>{formatDate(n.created_at)}</small></article>)}</div>}</div>}
 function NotesAccessGuard(){const access=useApiResource(()=>notesApi.access(),[]);if(access.loading)return <LoadingState label="Checking note access…"/>;if(access.error)return <ErrorState message={access.error}/>;return <NotesForm/>}
 
-function ReportsPage({role}){const reports=useApiResource(()=>reportsApi.list({limit:25,sort:'created_at',direction:'desc'}),[]),students=useApiResource(()=>studentsApi.list({limit:100}),[]),[selected,setSelected]=useState(null),[creating,setCreating]=useState(false),[error,setError]=useState('');async function create(body){const response=await reportsApi.create(body);reports.setData(rows=>[response.data,...rows]);setCreating(false)}async function transition(report,status){setError('');try{const response=await reportsApi.update(report.id,{status});reports.setData(rows=>rows.map(x=>x.id===report.id?response.data:x));setSelected(response.data)}catch(err){setError(err.message)}}const columns=[{key:'student_id',label:'Student',render:r=>fullName(students.data.find(s=>s.id===r.student_id))||r.student_id},{key:'report_period',label:'Period'},{key:'status',label:'Status',render:r=><Badge>{r.status}</Badge>},{key:'created_at',label:'Created',render:r=>formatDate(r.created_at)}];return <div><PageHeader eyebrow="Reports" title="Student Reports" description="Workflow transitions are enforced by the backend." action={role==='teacher'?'Create draft':null} onAction={()=>setCreating(true)}/><MutationError error={error}/><section className="surface data-surface">{reports.loading?<LoadingState/>:reports.error?<ErrorState message={reports.error}/>:reports.data.length?<DataTable rows={reports.data} columns={columns} onRow={setSelected}/>:<EmptyState title="No reports found"/>}</section><Modal open={creating} title="Create report draft" onClose={()=>setCreating(false)}><ReportCreate students={students.data} onSave={create} onClose={()=>setCreating(false)}/></Modal><Modal open={!!selected} title="Report workflow" onClose={()=>setSelected(null)}>{selected&&<ReportDetail report={selected} role={role} onTransition={transition}/>}</Modal></div>}
+const reportFlow=['Draft','Submitted','Under Review','Approved','Sent'];
+const reportStatuses=['Draft','Submitted','Under Review','Changes Requested','Approved','Sent'];
+function ReportsPage({role}){
+  const reports=useApiResource(()=>reportsApi.list({limit:100,sort:'created_at',direction:'desc'}),[]);
+  const students=useApiResource(()=>studentsApi.list({limit:100}),[]);
+  const [selected,setSelected]=useState(null),[creating,setCreating]=useState(false),[error,setError]=useState(''),[filter,setFilter]=useState('All'),[search,setSearch]=useState('');
+  const studentOf=id=>students.data.find(s=>s.id===id);
+  const studentName=id=>{const s=studentOf(id);return s?fullName(s):'Unknown student'};
+  async function create(body){const response=await reportsApi.create(body);reports.setData(rows=>[response.data,...rows]);setCreating(false);setSelected(response.data)}
+  async function transition(report,status){setError('');try{const response=await reportsApi.update(report.id,{status});reports.setData(rows=>rows.map(x=>x.id===report.id?response.data:x));setSelected(response.data)}catch(err){setError(err.message)}}
+  const count=status=>status==='All'?reports.data.length:reports.data.filter(r=>r.status===status).length;
+  const term=search.trim().toLowerCase();
+  const visible=reports.data.filter(r=>(filter==='All'||r.status===filter)&&(!term||`${studentName(r.student_id)} ${r.report_period}`.toLowerCase().includes(term)));
+  const select=r=>setSelected(current=>current?.id===r.id?null:r);
+  const selectedStudent=selected&&studentOf(selected.student_id);
+  return <div>
+    <PageHeader title="Student Reports" description="Write, review and send progress reports to families." action={role==='teacher'?'New report':null} onAction={()=>setCreating(true)}/>
+    <MutationError error={error}/>
+    <div className={`workspace ${selected?'has-selection':''}`}>
+      <section className="surface data-surface">
+        <div className="filter-bar">
+          <SearchBox value={search} onChange={setSearch} placeholder="Search by student or period…"/>
+          <span className="count-label">{visible.length} report{visible.length===1?'':'s'}</span>
+        </div>
+        <div className="status-filter" role="tablist" aria-label="Filter by status">{['All',...reportStatuses].map(s=><button key={s} role="tab" aria-selected={filter===s} className={filter===s?'active':''} onClick={()=>setFilter(s)}>{s}<b>{count(s)}</b></button>)}</div>
+        {reports.loading?<LoadingState/>:reports.error?<ErrorState message={reports.error} onRetry={()=>reports.refresh().catch(()=>{})}/>:visible.length?<div className="table-wrap"><table className="table roster-table">
+          <thead><tr><th>Student</th><th>Period</th><th>Status</th><th>Created</th></tr></thead>
+          <tbody>{visible.map(r=>{const s=studentOf(r.student_id);return <tr key={r.id} tabIndex={0} aria-selected={selected?.id===r.id} className={`clickable ${selected?.id===r.id?'selected':''}`} onClick={()=>select(r)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select(r)}}}>
+            <td><span className="person-cell"><Avatar name={studentName(r.student_id)} size="sm" tone={avatarTone(s)}/><span><strong>{studentName(r.student_id)}</strong><small className="mono">{s?.student_id||''}</small></span></span></td>
+            <td>{r.report_period}</td>
+            <td><Badge>{r.status}</Badge></td>
+            <td className="muted">{formatDate(r.created_at)}</td>
+          </tr>})}</tbody>
+        </table></div>:<EmptyState title={reports.data.length?'No reports match':'No reports yet'} text={reports.data.length?'Try a different status or search.':role==='teacher'?'Start a new report for one of your students.':'Reports will appear here once teachers create them.'}/>}
+      </section>
+      {selected?<aside className="detail-panel" aria-label="Report details">
+        <header className="panel-head">
+          <Avatar name={studentName(selected.student_id)} size="lg" tone="gold"/>
+          <div><h2>{studentName(selected.student_id)}</h2><p>{[selected.report_period,selectedStudent&&studentClassName(selectedStudent)].filter(Boolean).join(' · ')}</p></div>
+          <button className="icon-btn" onClick={()=>setSelected(null)} aria-label="Close report"><X size={17}/></button>
+        </header>
+        <ReportDetail key={selected.id} report={selected} role={role} onTransition={transition}/>
+      </aside>:<PanelPlaceholder icon={FileText} title="Select a report" text="Choose a report to read its sections, follow its progress and move it through review."/>}
+    </div>
+    <Modal open={creating} title="New report" onClose={()=>setCreating(false)}><ReportCreate students={students.data} onSave={create} onClose={()=>setCreating(false)}/></Modal>
+  </div>;
+}
+function ReportDetail({report,role,onTransition}){
+  const sections=useApiResource(()=>reportsApi.sections(report.id),[report.id]);
+  const [name,setName]=useState('Teacher Comments'),[content,setContent]=useState(''),[saving,setSaving]=useState(false),[pdfError,setPdfError]=useState('');
+  const editable=role==='teacher'&&['Draft','Changes Requested'].includes(report.status);
+  const teacherNext=editable?'Submitted':null;
+  const adminNext=role==='admin'?{Submitted:'Under Review','Under Review':'Approved',Approved:'Sent'}[report.status]:null;
+  const adminLabel={'Under Review':'Start review',Approved:'Approve',Sent:'Mark as sent'}[adminNext];
+  const step=report.status==='Changes Requested'?0:reportFlow.indexOf(report.status);
+  async function addSection(){setSaving(true);setPdfError('');try{await reportsApi.createSection(report.id,{section_name:name,content});setContent('');await sections.refresh()}catch(err){setPdfError(err.message)}finally{setSaving(false)}}
+  async function editSection(section){const next=prompt('Edit section content',section.content||'');if(next===null)return;try{const result=await reportsApi.updateSection(report.id,section.id,{content:next});sections.setData(rows=>rows.map(x=>x.id===section.id?result.data:x))}catch(err){setPdfError(err.message)}}
+  async function removeSection(section){if(!confirm('Delete this report section?'))return;try{await reportsApi.removeSection(report.id,section.id);sections.setData(rows=>rows.filter(x=>x.id!==section.id))}catch(err){setPdfError(err.message)}}
+  async function pdf(){setPdfError('');try{const {data}=await reportsApi.pdf(report.id);window.open(data.signed_url||data.signedUrl,'_blank','noopener,noreferrer')}catch(err){setPdfError(err.message)}}
+  return <div className="report-preview">
+    <div className="report-status"><Badge>{report.status}</Badge><small>Created {formatDate(report.created_at)}</small></div>
+    <ol className="stepper" aria-label="Report progress">{reportFlow.map((s,i)=><li key={s} className={i<step?'done':i===step?'current':''}><span/>{s}</li>)}</ol>
+    {report.status==='Changes Requested'&&<p className="callout">An administrator asked for changes. Update the sections below, then resubmit.</p>}
+    <MutationError error={pdfError}/>
+    <section className="panel-section">
+      <h3 className="eyebrow">Report sections</h3>
+      {sections.loading?<LoadingState/>:sections.data.length?sections.data.map(s=><article className="report-section" key={s.id}>
+        <header><h4>{s.section_name}</h4>{editable&&<span><button className="text-btn" onClick={()=>editSection(s)}>Edit</button><button className="text-btn danger" onClick={()=>removeSection(s)}>Delete</button></span>}</header>
+        <p>{s.content||'No content.'}</p>
+      </article>):<p className="panel-empty">{editable?'No sections yet. Add the first one below.':'No sections have been written yet.'}</p>}
+    </section>
+    {editable&&<section className="panel-section report-compose">
+      <h3 className="eyebrow">Add a section</h3>
+      <FormField label="Section title"><input value={name} onChange={e=>setName(e.target.value)}/></FormField>
+      <FormField label="Content"><textarea rows="5" value={content} onChange={e=>setContent(e.target.value)} placeholder="Progress, strengths, targets…"/></FormField>
+      <button className="btn btn-secondary" disabled={!content||saving} onClick={addSection}><Plus size={15}/>{saving?'Saving…':'Add section'}</button>
+    </section>}
+    <div className="panel-actions">
+      <button className="btn btn-secondary" onClick={pdf}><Download size={16}/>PDF</button>
+      {role==='admin'&&report.status==='Under Review'&&<button className="btn btn-secondary" onClick={()=>onTransition(report,'Changes Requested')}>Request changes</button>}
+      {teacherNext&&<button className="btn btn-primary" onClick={()=>onTransition(report,teacherNext)}>Submit for review</button>}
+      {adminNext&&<button className="btn btn-primary" onClick={()=>onTransition(report,adminNext)}>{adminLabel}</button>}
+    </div>
+  </div>;
+}
 function ReportCreate({students,onSave,onClose}){const[form,setForm]=useState({student_id:students[0]?.id||'',report_period:''}),[saving,setSaving]=useState(false),[error,setError]=useState('');async function submit(e){e.preventDefault();setSaving(true);try{await onSave(form)}catch(err){setError(err.message)}finally{setSaving(false)}}return <form onSubmit={submit}><MutationError error={error}/><FormField label="Student"><select value={form.student_id} onChange={e=>setForm({...form,student_id:e.target.value})}>{students.map(s=><option value={s.id} key={s.id}>{fullName(s)}</option>)}</select></FormField><FormField label="Report period"><input value={form.report_period} onChange={e=>setForm({...form,report_period:e.target.value})} required/></FormField><div className="inline-actions"><button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={saving}>{saving?'Creating…':'Create draft'}</button></div></form>}
-function ReportDetail({report,role,onTransition}){const sections=useApiResource(()=>reportsApi.sections(report.id),[report.id]),[name,setName]=useState('Teacher Comments'),[content,setContent]=useState(''),[saving,setSaving]=useState(false),[pdfError,setPdfError]=useState('');const editable=role==='teacher'&&['Draft','Changes Requested'].includes(report.status);const teacherNext=editable?'Submitted':null;const adminNext={Submitted:'Under Review','Under Review':'Approved',Approved:'Sent'}[report.status];async function addSection(){setSaving(true);try{await reportsApi.createSection(report.id,{section_name:name,content});setContent('');await sections.refresh()}finally{setSaving(false)}}async function editSection(section){const next=prompt('Edit section content',section.content||'');if(next===null)return;try{const result=await reportsApi.updateSection(report.id,section.id,{content:next});sections.setData(rows=>rows.map(x=>x.id===section.id?result.data:x))}catch(err){setPdfError(err.message)}}async function removeSection(section){if(!confirm('Delete this report section?'))return;try{await reportsApi.removeSection(report.id,section.id);sections.setData(rows=>rows.filter(x=>x.id!==section.id))}catch(err){setPdfError(err.message)}}async function pdf(){setPdfError('');try{const {data}=await reportsApi.pdf(report.id);window.open(data.signed_url||data.signedUrl,'_blank','noopener,noreferrer')}catch(err){setPdfError(err.message)}}return <div className="report-preview"><div className="student-summary"><div><h3>{report.report_period}</h3><p>Current status</p></div><Badge>{report.status}</Badge></div><MutationError error={pdfError}/>{sections.loading?<LoadingState/>:sections.data.map(s=><section key={s.id}><div className="section-head"><h4>{s.section_name}</h4>{editable&&<span><button className="text-btn" onClick={()=>editSection(s)}>Edit</button><button className="text-btn danger" onClick={()=>removeSection(s)}>Delete</button></span>}</div><p>{s.content||'No content.'}</p></section>)}{editable&&<div className="report-editor"><div><FormField label="Section"><input value={name} onChange={e=>setName(e.target.value)}/></FormField><FormField label="Content"><textarea rows="5" value={content} onChange={e=>setContent(e.target.value)}/></FormField><button className="btn btn-secondary" disabled={!content||saving} onClick={addSection}>{saving?'Saving…':'Add section'}</button></div></div>}<div className="inline-actions"><button className="btn btn-secondary" onClick={pdf}><Download size={16}/> Generate PDF</button>{teacherNext&&<button className="btn btn-primary" onClick={()=>onTransition(report,teacherNext)}>Submit report</button>}{adminNext&&<button className="btn btn-primary" onClick={()=>onTransition(report,adminNext)}>{adminNext}</button>}{role==='admin'&&report.status==='Under Review'&&<button className="btn btn-secondary" onClick={()=>onTransition(report,'Changes Requested')}>Request changes</button>}</div></div>}
 
 function MessagesPage({profile}){const messages=useApiResource(()=>messagesApi.list({limit:25}),[]),[selected,setSelected]=useState(null),[compose,setCompose]=useState(false);return <div><PageHeader eyebrow="Communication" title="Messages" description="Sender identity is derived by the backend." action="Compose" onAction={()=>setCompose(true)}/><div className="message-shell surface"><aside>{messages.loading?<LoadingState/>:messages.data.length?messages.data.map(m=><button className={selected?.id===m.id?'active':''} key={m.id} onClick={()=>setSelected(m)}><Avatar name="Staff" size="xs"/><span><strong>{m.subject||'No subject'}</strong><small>{m.body}</small></span></button>):<EmptyState title="No messages found"/>}</aside><article>{selected?<><header><div><h2>{selected.subject||'Message'}</h2><p>{formatDate(selected.created_at)}</p></div></header><div className="message-body"><div className="bubble incoming"><p>{selected.body}</p></div></div></>:<EmptyState title="Select a message"/>}</article></div><Modal open={compose} title="Compose message" onClose={()=>setCompose(false)}><MessageForm onSave={async body=>{const result=await messagesApi.create(body);messages.setData(rows=>[result.data,...rows]);setCompose(false)}}/></Modal></div>}
 function MessageForm({onSave}){const[recipient,setRecipient]=useState(''),[subject,setSubject]=useState(''),[body,setBody]=useState(''),[error,setError]=useState(''),[saving,setSaving]=useState(false);async function submit(e){e.preventDefault();setSaving(true);try{await onSave({recipient_ids:recipient.split(',').map(x=>x.trim()).filter(Boolean),subject,body})}catch(err){setError(err.message)}finally{setSaving(false)}}return <form onSubmit={submit}><MutationError error={error}/><FormField label="Recipient profile ID(s)" required><input value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="UUID, comma separated"/></FormField><FormField label="Subject"><input value={subject} onChange={e=>setSubject(e.target.value)}/></FormField><FormField label="Message" required><textarea rows="6" value={body} onChange={e=>setBody(e.target.value)}/></FormField><div className="inline-actions"><button className="btn btn-primary" disabled={saving}>{saving?'Sending…':'Send message'}</button></div></form>}
@@ -379,4 +602,4 @@ function SettingRow({item,onSave,saving}){const[value,setValue]=useState(typeof 
 function StoragePage(){const[file,setFile]=useState(null),[bucket,setBucket]=useState('documents'),[path,setPath]=useState(''),[status,setStatus]=useState(''),[url,setUrl]=useState('');async function upload(){setStatus('Uploading…');try{const form=new FormData();form.set('file',file);form.set('bucket',bucket);form.set('path',path);await storageApi.upload(form);setStatus('Uploaded')}catch(err){setStatus(err.message)}}async function signed(){setStatus('Requesting secure link…');try{const result=await storageApi.signedUrl({bucket,path,expires_in:60});setUrl(result.data.signed_url||result.data.signedUrl);setStatus('Secure link ready')}catch(err){setStatus(err.message)}}return <div><PageHeader eyebrow="Private storage" title="Files" description="Uploads and temporary links use validated backend storage routes."/><section className="surface settings-form"><MutationError error={status}/><FormField label="Bucket"><select value={bucket} onChange={e=>setBucket(e.target.value)}><option>documents</option><option>student-photos</option><option>homework-files</option><option>report-pdfs</option></select></FormField><FormField label="Validated object path"><input value={path} onChange={e=>setPath(e.target.value)} placeholder="students/{uuid}/filename.pdf"/></FormField><FormField label="File"><input type="file" onChange={e=>setFile(e.target.files?.[0]||null)}/></FormField><div className="inline-actions"><button className="btn btn-primary" disabled={!file||!path} onClick={upload}>Upload</button><button className="btn btn-secondary" disabled={!path} onClick={signed}>Create signed URL</button>{url&&<a className="btn btn-secondary" href={url} target="_blank" rel="noreferrer">Open file</a>}</div></section></div>}
 function Dashboard({profile,onNavigate}){const students=useApiResource(()=>studentsApi.list({limit:1}),[]),classes=useApiResource(()=>classesApi.list({limit:1}),[]),reports=useApiResource(()=>reportsApi.list({limit:5}),[]),notifications=useApiResource(()=>notificationsApi.list({limit:5,unread:true}),[]);const stats=[['Students',students.meta?.total??'—'],[profile.role==='admin'?'Classes':'My classes',classes.meta?.total??'—'],['Reports',reports.meta?.total??'—'],['Unread notifications',notifications.meta?.total??'—']];return <div><PageHeader title="Dashboard" description={`Signed in as ${fullName(profile)}`}/><div className="stat-strip">{stats.map(([label,value])=><article key={label}><span>{label}</span><strong>{value}</strong></article>)}</div><div className="dashboard-grid"><section className="surface span-2"><div className="section-head"><h2>Reports requiring attention</h2><button className="text-btn" onClick={()=>onNavigate('reports')}>View reports</button></div>{reports.loading?<LoadingState/>:reports.data.map(r=><button className="compact-row" key={r.id} onClick={()=>onNavigate('reports')}><FileText size={18}/><span><strong>{r.report_period}</strong><small>{r.status}</small></span><Badge>{r.status}</Badge></button>)}</section><section className="surface"><div className="section-head"><h2>Shortcuts</h2></div><div className="quick-grid">{[['Students','students'],['Attendance','attendance'],['Reports','reports'],['Notifications','notifications']].map(([label,id])=><button key={id} onClick={()=>onNavigate(id)}>{label}<ChevronRight size={16}/></button>)}</div></section></div></div>}
 
-export default function MadrasaApp(){const[auth,setAuth]=useState({loading:true,session:null,profile:null,error:''}),[page,setPage]=useState('dashboard'),[pageParams,setPageParams]=useState({}),[collapsed,setCollapsed]=useState(false),[mobileOpen,setMobileOpen]=useState(false);async function resolve(session){if(!session){setAuth({loading:false,session:null,profile:null,error:''});return}const{data:profile,error}=await supabase.from('profiles').select('id,auth_user_id,username,first_name,last_name,email,role,active').eq('auth_user_id',session.user.id).maybeSingle();if(error||!profile?.active||!['admin','teacher'].includes(profile.role)){await supabase.auth.signOut();setAuth({loading:false,session:null,profile:null,error:'Your account is not permitted to access this application.'});return}setAuth({loading:false,session,profile,error:''})}useEffect(()=>{supabase.auth.getSession().then(({data})=>resolve(data.session));const{data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>{setTimeout(()=>resolve(session),0)});const unauthorized=()=>supabase.auth.signOut();window.addEventListener('huda:unauthorized',unauthorized);return()=>{subscription.unsubscribe();window.removeEventListener('huda:unauthorized',unauthorized)}},[]);async function login(identifier,password,portal){const{data:tokens}=await authApi.login({identifier,password,portal});const{data,error}=await supabase.auth.setSession(tokens);if(error)throw new ApiError(401,'INVALID_CREDENTIALS','Sign in failed. Please try again.');await resolve(data.session)}async function logout(){await supabase.auth.signOut();setPage('dashboard')}function navigate(next,params={}){if(auth.profile?.role==='teacher'&&adminOnly.has(next)){setPage('denied');return}setPageParams(params);setPage(next)}if(auth.loading)return <div className="splash">Huda Tarbiyah Portal</div>;if(!auth.session||!auth.profile)return <Login onLogin={login}/>;let content;if(page==='dashboard')content=<Dashboard profile={auth.profile} onNavigate={navigate}/>;else if(page==='denied')content=<div className="state-page"><ShieldAlert size={42}/><h1>Access denied</h1><p>This area is reserved for administrators. Backend authorization remains authoritative.</p><button className="btn btn-primary" onClick={()=>navigate('dashboard')}>Return to dashboard</button></div>;else if(domainConfig[page])content=<DirectoryPage type={page} role={auth.profile.role}/>;else if(page==='attendance')content=<AttendancePage key={JSON.stringify(pageParams)} role={auth.profile.role} preset={pageParams}/>;else if(page==='bracket-review')content=<BracketReviewPage/>;else if(page==='teacher-requests')content=<TeacherRequestsPage/>;else if(page==='notes')content=<NotesAccessGuard/>;else if(page==='reports')content=<ReportsPage role={auth.profile.role}/>;else if(page==='messages')content=<MessagesPage profile={auth.profile}/>;else if(page==='notifications')content=<NotificationsPage onNavigate={navigate}/>;else if(page==='calendar')content=<CalendarPage role={auth.profile.role}/>;else if(page==='settings')content=<SettingsPage/>;else if(page==='storage')content=<StoragePage/>;else content=<ErrorState message="The requested page does not exist."/>;return <div className="app-shell"><Sidebar role={auth.profile.role} page={page} onNavigate={navigate} collapsed={collapsed} onCollapse={()=>setCollapsed(!collapsed)} mobileOpen={mobileOpen} onMobileClose={()=>setMobileOpen(false)}/>{mobileOpen&&<button className="sidebar-scrim" onClick={()=>setMobileOpen(false)}/>}<div className={`app-main ${collapsed?'expanded':''}`}><Header profile={auth.profile} page={page} onLogout={logout} onMenu={()=>setMobileOpen(true)} onNavigate={navigate}/><main className="page-content">{content}</main></div></div>}
+export default function MadrasaApp(){const[auth,setAuth]=useState({loading:true,session:null,profile:null,error:''}),[page,setPage]=useState('dashboard'),[pageParams,setPageParams]=useState({}),[collapsed,setCollapsed]=useState(false),[mobileOpen,setMobileOpen]=useState(false);async function resolve(session){if(!session){setAuth({loading:false,session:null,profile:null,error:''});return}const{data:profile,error}=await supabase.from('profiles').select('id,auth_user_id,username,first_name,last_name,email,role,active').eq('auth_user_id',session.user.id).maybeSingle();if(error||!profile?.active||!['admin','teacher'].includes(profile.role)){await supabase.auth.signOut();setAuth({loading:false,session:null,profile:null,error:'Your account is not permitted to access this application.'});return}setAuth({loading:false,session,profile,error:''})}useEffect(()=>{supabase.auth.getSession().then(({data})=>resolve(data.session));const{data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>{setTimeout(()=>resolve(session),0)});const unauthorized=()=>supabase.auth.signOut();window.addEventListener('huda:unauthorized',unauthorized);return()=>{subscription.unsubscribe();window.removeEventListener('huda:unauthorized',unauthorized)}},[]);async function login(identifier,password,portal){const{data:tokens}=await authApi.login({identifier,password,portal});const{data,error}=await supabase.auth.setSession(tokens);if(error)throw new ApiError(401,'INVALID_CREDENTIALS','Sign in failed. Please try again.');await resolve(data.session)}async function logout(){await supabase.auth.signOut();setPage('dashboard')}function navigate(next,params={}){if(auth.profile?.role==='teacher'&&adminOnly.has(next)){setPage('denied');return}setPageParams(params);setPage(next)}if(auth.loading)return <div className="splash">Huda Tarbiyah Portal</div>;if(!auth.session||!auth.profile)return <Login onLogin={login}/>;let content;if(page==='dashboard')content=<Dashboard profile={auth.profile} onNavigate={navigate}/>;else if(page==='denied')content=<div className="state-page"><ShieldAlert size={42}/><h1>Access denied</h1><p>This area is reserved for administrators. Backend authorization remains authoritative.</p><button className="btn btn-primary" onClick={()=>navigate('dashboard')}>Return to dashboard</button></div>;else if(page==='students')content=<StudentsPage role={auth.profile.role}/>;else if(domainConfig[page])content=<DirectoryPage type={page} role={auth.profile.role}/>;else if(page==='attendance')content=<AttendancePage key={JSON.stringify(pageParams)} role={auth.profile.role} preset={pageParams}/>;else if(page==='bracket-review')content=<BracketReviewPage/>;else if(page==='teacher-requests')content=<TeacherRequestsPage/>;else if(page==='notes')content=<NotesAccessGuard/>;else if(page==='reports')content=<ReportsPage role={auth.profile.role}/>;else if(page==='messages')content=<MessagesPage profile={auth.profile}/>;else if(page==='notifications')content=<NotificationsPage onNavigate={navigate}/>;else if(page==='calendar')content=<CalendarPage role={auth.profile.role}/>;else if(page==='settings')content=<SettingsPage/>;else if(page==='storage')content=<StoragePage/>;else content=<ErrorState message="The requested page does not exist."/>;return <div className="app-shell"><Sidebar role={auth.profile.role} page={page} onNavigate={navigate} collapsed={collapsed} onCollapse={()=>setCollapsed(!collapsed)} mobileOpen={mobileOpen} onMobileClose={()=>setMobileOpen(false)}/>{mobileOpen&&<button className="sidebar-scrim" onClick={()=>setMobileOpen(false)}/>}<div className={`app-main ${collapsed?'expanded':''}`}><Header profile={auth.profile} page={page} onLogout={logout} onMenu={()=>setMobileOpen(true)} onNavigate={navigate}/><main className="page-content">{content}</main></div></div>}
