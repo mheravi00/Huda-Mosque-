@@ -22,9 +22,9 @@ export const homeworkApi = { ...collection('/api/homework'), submissions: id => 
 export const assessmentsApi = { ...collection('/api/assessments'), results: id => api.get(`/api/assessments/${id}/results`), createResult: (id, body) => api.post(`/api/assessments/${id}/results`, body), updateResult: (id, studentId, body) => api.patch(`/api/assessments/${id}/results/${studentId}`, body) };
 export const notesApi = { access: () => api.get('/api/notes/access'), list: studentId => api.get(`/api/students/${studentId}/notes`), create: (studentId, body) => api.post(`/api/students/${studentId}/notes`, body), update: (id, body) => api.patch(`/api/student-notes/${id}`, body), remove: id => api.delete(`/api/student-notes/${id}`) };
 export const reportsApi = { ...collection('/api/reports'), sections: id => api.get(`/api/reports/${id}/sections`), createSection: (id, body) => api.post(`/api/reports/${id}/sections`, body), updateSection: (id, sectionId, body) => api.patch(`/api/reports/${id}/sections/${sectionId}`, body), removeSection: (id, sectionId) => api.delete(`/api/reports/${id}/sections/${sectionId}`), pdf: id => api.post(`/api/reports/${id}/pdf`, {}) };
-export const reportRequestsApi = { ...collection('/api/report-requests'), create: body => api.post('/api/admin/report-requests', body) };
+export const reportRequestsApi = { ...collection('/api/report-requests'), create: body => api.post('/api/admin/report-requests', body), update: (id, body) => api.patch(`/api/admin/report-requests/${id}`, body) };
 export const messagesApi = collection('/api/messages');
-export const notificationsApi = collection('/api/notifications');
+export const notificationsApi = { ...collection('/api/notifications'), readAll: () => api.post('/api/notifications/read-all', {}) };
 export const calendarApi = { ...collection('/api/calendar'), admin: collection('/api/admin/calendar') };
 export const settingsApi = { list: () => api.get('/api/settings'), update: (key, value) => api.patch(`/api/admin/settings/${encodeURIComponent(key)}`, { value }) };
-export const storageApi = { upload: form => api.upload('/api/storage/upload', form), signedUrl: body => api.post('/api/storage/signed-url', body), remove: body => apiRequest('/api/storage/objects', { method: 'DELETE', body }) };
+export const storageApi = { upload: form => api.upload('/api/storage/upload', form), signedUrl: body => api.post('/api/storage/signed-url', body), remove: body => apiRequest('/api/storage/objects', { method: 'DELETE', body }), list: bucket => api.get('/api/storage/objects', { bucket }) };

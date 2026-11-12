@@ -47,7 +47,7 @@ export async function syncStudentClass(supabase:any,student:{id:string;gender:st
  const{error:removeError}=await supabase.from('class_students').delete().eq('student_id',student.id).neq('class_id',target.id);mapDatabaseError(removeError);
  if(!current.some((r:any)=>r.class_id===target.id)){const{error}=await supabase.from('class_students').insert({student_id:student.id,class_id:target.id});mapDatabaseError(error)}
 }
-export const studentWithClassSelect='*,class_students(classes(id,name))';
+export const studentWithClassSelect='*,class_students(override_reason,classes(id,name,gender,min_age,max_age,dob_from,dob_to,day_of_week,start_time,end_time,room_location))';
 export const patchStudent=route(async(request:NextRequest,_:{params:{id:string}})=>{
  ensureUuid(_.params.id);const c=await requireAdmin(request),body=await jsonBody(request);assertAllowedFields(body,students.writeFields);
  const payload=students.patch(body);if(!Object.keys(payload).length)throw new ApiError(400,'VALIDATION_ERROR','No update fields were supplied.');

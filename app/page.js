@@ -1,5 +1,5 @@
-import MadrasaApp from '../src/ui/MadrasaApp';
+import HudaApp from '../src/ui/huda/app';
 
 export default function HomePage() {
-  return <MadrasaApp />;
+  return <HudaApp />;
 }
