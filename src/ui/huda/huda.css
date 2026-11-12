@@ -361,17 +361,21 @@ input[type=checkbox],input[type=radio]{accent-color:var(--ink);width:16px;height
 .tbl td.cb,.tbl th.cb{width:38px;padding-right:0}
 
 /* ---- transfer screen ---- */
-.xfer{display:grid;grid-template-columns:1fr 64px 1fr;gap:0;align-items:stretch}
-.xfer-col{min-width:0}
-.xfer-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--muted)}
-.xfer-arrow{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--gold-soft);color:var(--gold-ink);border:1px solid #e2d3a8}
-.xfer-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line2)}
-.xfer-list{max-height:min(60vh,560px);overflow:auto}
+.xfer{display:grid;grid-template-columns:1fr 72px 1fr;gap:0;align-items:start}
+.xfer-card{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:var(--shadow);min-width:0}
+.xfer-h{display:flex;align-items:center;gap:12px;background:var(--ink);color:#faf8e9;padding:15px 20px;font:600 21px/1.1 var(--display)}
+.xfer-h svg{color:#faf8e9;flex-shrink:0}
+.xfer-pick{padding:16px 18px;border-bottom:1px solid var(--line2)}
+.xfer-pick .sel{height:48px;font-size:15px}
+.xfer-tools{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line2)}
+.xfer-list{max-height:min(52vh,480px);overflow:auto}
 .xfer-item{display:flex;align-items:center;gap:11px;padding:10px 16px;border-top:1px solid var(--line2);cursor:pointer}
 .xfer-item:first-child{border-top:0}.xfer-item:hover{background:var(--hover)}
 .xfer-item.pick{background:var(--gold-soft)}
 .xfer-empty{padding:40px 20px;text-align:center;color:var(--muted)}
-@media(max-width:860px){.xfer{grid-template-columns:1fr;gap:14px}.xfer-mid{flex-direction:row;padding:4px 0}.xfer-arrow{transform:rotate(90deg)}}
+.xfer-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:60px}
+.xfer-arrow{color:var(--ink)}
+@media(max-width:860px){.xfer{grid-template-columns:1fr;gap:16px}.xfer-mid{padding:0}.xfer-arrow{transform:rotate(90deg)}}
 
 /* ---- attendance analytics ---- */
 .az-bars{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}

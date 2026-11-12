@@ -55,6 +55,7 @@ refresh:<><path d="M19.5 12a7.5 7.5 0 11-2.2-5.3"/><path d="M19.5 4.5v4h-4"/></>
 unlink:<><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7"/><path d="M4 4l16 16"/></>,
 chart:<><path d="M4 20V4M20 20H4"/><rect x="7" y="12" width="3" height="5" rx="1"/><rect x="12" y="8" width="3" height="9" rx="1"/><rect x="17" y="5" width="3" height="12" rx="1"/></>,
 swap:<><path d="M7 7h11l-3-3M17 17H6l3 3"/></>,
+people:<><circle cx="9" cy="8" r="3"/><path d="M3 19a6 6 0 0112 0"/><path d="M16.5 5.2a3 3 0 010 5.6"/><path d="M18 19a6 6 0 00-3.3-5.4"/></>,
 };
 export const Ico=({n,s=18,w=1.6,...r})=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={w} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...r}>{IP[n]}</svg>;
 

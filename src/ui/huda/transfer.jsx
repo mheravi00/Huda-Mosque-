@@ -32,56 +32,55 @@ export function Transfer(){
   return <div className="enter" style={{maxWidth:1080}}>
     <PageHead back={{label:'Back to classes',onClick:()=>go('classes',from?{id:from}:undefined)}} title="Transfer students" desc="Pick students on the left, choose the class to move them to on the right, then confirm."/>
     <Alert style={{marginBottom:16}}>{err}</Alert>
-    <div className="card">
-      <div className="xfer">
-        {/* Source */}
-        <div className="xfer-col">
-          <div className="xfer-head">
-            <Ico n="layers" s={18} style={{color:'var(--muted)'}}/>
-            <select className="sel" value={from} onChange={e=>{setFrom(e.target.value);setPicked(new Set())}} style={{height:38}} aria-label="Transfer from class">
-              <option value="">Transfer from…</option>
-              {classes.data.map(c=><option key={c.id} value={c.id}>{clsName(c)}</option>)}
-            </select>
-          </div>
-          {from&&<div className="row" style={{padding:'10px 16px',borderBottom:'1px solid var(--line2)',gap:10}}>
-            <label className="check" style={{margin:0}}><input type="checkbox" checked={allPicked} onChange={toggleAll}/><span className="sm-t">Select all</span></label>
-            <span className="count" style={{marginLeft:'auto'}}>{picked.size} selected</span>
-          </div>}
-          <div className="xfer-list">
-            {!from?<div className="xfer-empty">Choose a class to see its students.</div>
-             :kids.loading?<Loading/>
-             :list.length===0?<div className="xfer-empty">No students in this class.</div>
-             :list.map(s=><label key={s.id} className={`xfer-item${picked.has(s.id)?' pick':''}`}>
-               <input type="checkbox" checked={picked.has(s.id)} onChange={()=>toggle(s.id)}/>
-               <Av p={s} size="sm"/><div className="grow" style={{minWidth:0}}><div className="nm">{name(s)}</div><div className="sub">{s.student_id} · Age {H.age(s.date_of_birth)??'—'}</div></div>
-             </label>)}
-          </div>
+    <div className="xfer">
+      {/* Current class */}
+      <section className="xfer-card">
+        <header className="xfer-h"><Ico n="people" s={22}/>Current Class</header>
+        <div className="xfer-pick">
+          <select className="sel" value={from} onChange={e=>{setFrom(e.target.value);setPicked(new Set())}} aria-label="Current class">
+            <option value="">Select Class</option>
+            {classes.data.map(c=><option key={c.id} value={c.id}>{clsName(c)}</option>)}
+          </select>
         </div>
-        {/* Middle */}
-        <div className="xfer-mid"><span className="xfer-arrow"><Ico n="arrowr" s={18}/></span><span className="lab" style={{writingMode:'vertical-rl'}}>Move</span></div>
-        {/* Target */}
-        <div className="xfer-col">
-          <div className="xfer-head">
-            <Ico n="layers" s={18} style={{color:'var(--muted)'}}/>
-            <select className="sel" value={to} onChange={e=>setTo(e.target.value)} style={{height:38}} aria-label="Transfer to class">
-              <option value="">Transfer to…</option>
-              {classes.data.filter(c=>c.id!==from).map(c=><option key={c.id} value={c.id}>{clsName(c)}</option>)}
-            </select>
-          </div>
-          {toClass?<div className="xfer-list">
-            {picked.size===0?<div className="xfer-empty">Selected students will appear here.</div>:
-              list.filter(s=>picked.has(s.id)).map(s=><div key={s.id} className="xfer-item" style={{cursor:'default'}}>
-                <span style={{width:16,height:16,borderRadius:'50%',background:'var(--good)',display:'grid',placeItems:'center',flexShrink:0}}><Ico n="check" s={11} w={2.4} style={{color:'#fff'}}/></span>
-                <Av p={s} size="sm"/><div className="grow" style={{minWidth:0}}><div className="nm">{name(s)}</div><div className="sub">{s.student_id}</div></div>
-              </div>)}
-          </div>:<div className="xfer-empty">Choose the class to move students into.</div>}
+        {from&&!kids.loading&&list.length>0&&<div className="xfer-tools">
+          <label className="check" style={{margin:0}}><input type="checkbox" checked={allPicked} onChange={toggleAll}/><span className="sm-t">Select all</span></label>
+          <span className="count" style={{marginLeft:'auto'}}>{picked.size} selected</span>
+        </div>}
+        <div className="xfer-list">
+          {!from?<div className="xfer-empty">Choose a class to see its students.</div>
+           :kids.loading?<Loading/>
+           :list.length===0?<div className="xfer-empty">No students in this class.</div>
+           :list.map(s=><label key={s.id} className={`xfer-item${picked.has(s.id)?' pick':''}`}>
+             <input type="checkbox" checked={picked.has(s.id)} onChange={()=>toggle(s.id)}/>
+             <Av p={s} size="sm"/><div className="grow" style={{minWidth:0}}><div className="nm">{name(s)}</div><div className="sub">{s.student_id} · Age {H.age(s.date_of_birth)??'—'}</div></div>
+           </label>)}
         </div>
-      </div>
-      <div className="row wrap" style={{padding:'14px 16px',borderTop:'1px solid var(--line2)',justifyContent:'flex-end',gap:8}}>
-        <span className="sub grow" style={{alignSelf:'center'}}>{picked.size>0&&toClass?`Move ${picked.size} ${picked.size===1?'student':'students'} to ${secName(toClass)}`:'Pick students and a target class'}</span>
-        <button className="btn" onClick={()=>go('classes',from?{id:from}:undefined)}>Cancel</button>
-        <button className="btn pri" disabled={busy||!from||!to||picked.size===0} onClick={confirm}><Ico n="arrowr" s={15}/>{busy?'Moving…':'Confirm transfer'}</button>
-      </div>
+      </section>
+      {/* Arrow */}
+      <div className="xfer-mid"><span className="xfer-arrow"><Ico n="arrowr" s={34} w={2.4}/></span></div>
+      {/* New class */}
+      <section className="xfer-card">
+        <header className="xfer-h"><Ico n="people" s={22}/>New Class</header>
+        <div className="xfer-pick">
+          <select className="sel" value={to} onChange={e=>setTo(e.target.value)} aria-label="New class">
+            <option value="">Select New Class</option>
+            {classes.data.filter(c=>c.id!==from).map(c=><option key={c.id} value={c.id}>{clsName(c)}</option>)}
+          </select>
+        </div>
+        <div className="xfer-list">
+          {!toClass?<div className="xfer-empty">Choose the class to move students into.</div>
+           :picked.size===0?<div className="xfer-empty">Selected students will appear here.</div>
+           :list.filter(s=>picked.has(s.id)).map(s=><div key={s.id} className="xfer-item" style={{cursor:'default'}}>
+             <span style={{width:16,height:16,borderRadius:'50%',background:'var(--good)',display:'grid',placeItems:'center',flexShrink:0}}><Ico n="check" s={11} w={2.4} style={{color:'#fff'}}/></span>
+             <Av p={s} size="sm"/><div className="grow" style={{minWidth:0}}><div className="nm">{name(s)}</div><div className="sub">{s.student_id}</div></div>
+           </div>)}
+        </div>
+      </section>
+    </div>
+    <div className="footbar">
+      <span className="dirty grow">{picked.size>0&&toClass?`Move ${picked.size} ${picked.size===1?'student':'students'} to ${secName(toClass)}`:'Pick students and a new class'}</span>
+      <button className="btn" onClick={()=>go('classes',from?{id:from}:undefined)}>Cancel</button>
+      <button className="btn pri" disabled={busy||!from||!to||picked.size===0} onClick={confirm}><Ico n="arrowr" s={15}/>{busy?'Moving…':'Confirm transfer'}</button>
     </div>
   </div>;
 }
