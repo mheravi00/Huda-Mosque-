@@ -125,7 +125,7 @@ export function Register(){
   const t={P:0,A:0,E:0,N:0};kids.forEach(s=>{const v=m[s.id];if(!v)t.N++;else if(v==='Absent')t.A++;else if(v==='Excused')t.E++;else t.P++});
   const back=async()=>{if(dirty&&!(await confirm({title:'Leave without saving?',body:"Your marks for this register haven't been saved yet.",label:'Leave without saving',danger:true})))return;setGuard(null);go('attendance',{classId})};
   const save=async()=>{setSaving(true);setErr('');try{await saveRegister(attendanceApi,{classId,date,students:kids,statuses:m});setGuard(null);toast('Register saved');go('attendance',{classId})}catch(e){setErr(e.message)}finally{setSaving(false)}};
-  const opts=[['Present','Present','p'],['Absent','Absent','a'],['Excused','Absent with excuse','e']];
+  const opts=[['Present','Present','p'],['Absent','Absent','a'],['Excused','Excused','e']];
   return <div className="enter" style={{maxWidth:880}}>
     <PageHead back={{label:'Back to registers',onClick:back}} eyebrow={existing?'Editing saved register':'New register'} title={`${c.name} · ${H.fmtDay(date)}`} desc={[H.fmtL(date),c.start_time&&`${H.time(c.start_time)}–${H.time(c.end_time)}`,c.room_location].filter(Boolean).join(' · ')}/>
     <Alert style={{marginBottom:14}}>{err}</Alert>
@@ -136,7 +136,7 @@ export function Register(){
     <div className="card">
       {kids.length===0?<Empty icon="user" title="No students in this class" body="Students are placed in a class automatically from their gender and age when added, or from the Class section of a student record."/>:kids.map(s=>{const v=m[s.id];return <div key={s.id} className={`reg-row${v?'':' unmarked'}`}>
         <Av p={s}/><div className="grow" style={{minWidth:140}}><div className="nm">{name(s)}</div><div className="sub">{v==='Late'?'Recorded as late':v?'':'Not yet marked'}</div></div>
-        <div className="seg att" role="radiogroup" aria-label={`Attendance for ${s.first_name}`}>{opts.map(([val,l,k])=><button key={val} type="button" className={(v===val||(val==='Present'&&v==='Late'))?`on ${k}`:''} onClick={()=>setM({...m,[s.id]:val})} aria-checked={v===val} role="radio"><span className={val==='Excused'?'hide-sm':''}>{l}</span>{val==='Excused'&&<span className="show-sm">Excused</span>}</button>)}</div>
+        <div className="seg att" role="radiogroup" aria-label={`Attendance for ${s.first_name}`}>{opts.map(([val,l,k])=><button key={val} type="button" className={(v===val||(val==='Present'&&v==='Late'))?`on ${k}`:''} onClick={()=>setM({...m,[s.id]:val})} aria-checked={v===val} role="radio" title={val==='Excused'?'Absent with excuse':val}>{l}</button>)}</div>
       </div>})}
     </div>
     <div className="footbar">

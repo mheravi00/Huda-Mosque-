@@ -337,12 +337,13 @@ input[type=checkbox],input[type=radio]{accent-color:var(--ink);width:16px;height
 @media(max-width:860px){.signin{grid-template-columns:1fr}.si-brand{display:none}.si-mob{display:flex;align-items:center;gap:10px;margin-bottom:28px}.si-form{align-items:flex-start;padding:32px 20px}}
 
 /* register (from huda-attendance.jsx) */
-.reg-row{display:flex;align-items:center;gap:12px;padding:12px 18px;border-top:1px solid var(--line2);flex-wrap:wrap}
+.reg-row{display:flex;align-items:center;gap:14px;padding:12px 20px;border-top:1px solid var(--line2);flex-wrap:wrap}
 .reg-row:first-child{border-top:0}.reg-row.unmarked{background:#fdfaf0}
-.seg.att button{height:38px;padding:0 14px}
+.reg-row .grow{flex:1 1 160px}
+.seg.att{width:318px;max-width:100%;flex-shrink:0;margin-left:auto}
+.seg.att button{flex:1 1 0;min-width:0;height:40px;padding:0 8px;font-size:13.5px;white-space:nowrap}
 .seg.att button.on.p{background:var(--good);color:#fff;box-shadow:none}.seg.att button.on.a{background:var(--bad);color:#fff;box-shadow:none}.seg.att button.on.e{background:var(--gold);color:var(--ink);box-shadow:none}
-.show-sm{display:none}
-@media(max-width:600px){.reg-row{padding:12px 14px}.reg-row .seg{width:100%}.reg-row .seg button{height:44px;padding:0 6px;font-size:13.5px}.show-sm{display:inline!important}}
+@media(max-width:600px){.reg-row{padding:12px 14px;gap:10px}.seg.att{width:100%;margin-left:0}.seg.att button{height:44px;padding:0 6px}}
 
 /* splash */
 .splash{min-height:100vh;display:grid;place-items:center;font:600 22px var(--display);color:var(--ink)}
