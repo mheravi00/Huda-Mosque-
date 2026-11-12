@@ -7,7 +7,8 @@ export const NAV={
   admin:[
     ['Overview',[['dashboard','Dashboard','grid']]],
     ['People',[['students','Students','user'],['guardians','Guardians','home'],['staff','Teachers','badge'],['requests','Teacher Requests','userplus','requests']]],
-    ['Academic',[['classes','Classes','layers'],['subjects','Subjects','book'],['attendance','Attendance','checksq'],['homework','Homework','pencil'],['assessments','Assessments','award'],['bracket','Bracket Review','scale','bracket']]],
+    ['Academic',[['classes','Classes','layers'],['subjects','Subjects','book'],['attendance','Attendance','checksq'],['analytics','Attendance Analytics','chart'],['homework','Homework','pencil'],['assessments','Assessments','award'],['bracket','Bracket Review','scale','bracket']]],
+    ['Conduct',[['behaviour','Behaviour Log','shield'],['notes','Student Notes','note']]],
     ['Reports',[['reports','Student Reports','file','review'],['report-requests','Report Requests','clock']]],
     ['Communication',[['templates','Message Templates','mail']]],
     ['Updates',[['notifications','Notifications','bell','unread']]],
@@ -15,7 +16,8 @@ export const NAV={
   ],
   teacher:[
     ['Overview',[['dashboard','Dashboard','grid']]],
-    ['Teaching',[['classes','My Classes','layers'],['students','Students','user'],['attendance','Attendance','checksq'],['homework','Homework','pencil'],['assessments','Assessments','award'],['notes','Student Notes','note']]],
+    ['Teaching',[['classes','My Classes','layers'],['students','Students','user'],['attendance','Attendance','checksq'],['analytics','Attendance Analytics','chart'],['homework','Homework','pencil'],['assessments','Assessments','award']]],
+    ['Conduct',[['behaviour','Behaviour Log','shield'],['notes','Student Notes','note']]],
     ['Reports',[['reports','Reports','file','changes'],['report-requests','Report Requests','clock']]],
     ['Updates',[['notifications','Notifications','bell','unread']]],
   ],
@@ -24,8 +26,8 @@ export const NAV={
 export const ROUTE={
   dashboard:['Dashboard'],students:['Students'],'student-edit':['Edit student','students',1],'student-add':['Add student','students',1],
   guardians:['Guardians',0,1],'guardian-add':['Add guardian','guardians',1],staff:['Teachers',0,1],requests:['Teacher Requests',0,1],
-  classes:['Classes'],subjects:['Subjects',0,1],attendance:['Attendance'],register:['Register','attendance'],homework:['Homework'],assessments:['Assessments'],
-  bracket:['Bracket Review',0,1],reports:['Student Reports'],'report-requests':['Report Requests'],notes:['Student Notes',0,0,1],
+  classes:['Classes'],subjects:['Subjects',0,1],attendance:['Attendance'],register:['Register','attendance'],analytics:['Attendance Analytics'],transfer:['Transfer students','classes'],homework:['Homework'],assessments:['Assessments'],
+  bracket:['Bracket Review',0,1],reports:['Student Reports'],'report-requests':['Report Requests'],notes:['Student Notes'],behaviour:['Behaviour Log'],
   templates:['Message Templates',0,1],notifications:['Notifications'],settings:['Settings',0,1],files:['Files',0,1],
 };
 export const routeLabel=(r,role)=>r==='classes'&&role==='teacher'?'My Classes':r==='reports'&&role==='teacher'?'Reports':(ROUTE[r]||['Page'])[0];

@@ -53,6 +53,8 @@ arrowr:<path d="M5 12h14M13.5 6.5L19 12l-5.5 5.5"/>,
 archive:<><rect x="3.5" y="4.5" width="17" height="4.5" rx="1"/><path d="M5 9v10.5h14V9M10 13h4"/></>,
 refresh:<><path d="M19.5 12a7.5 7.5 0 11-2.2-5.3"/><path d="M19.5 4.5v4h-4"/></>,
 unlink:<><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7"/><path d="M4 4l16 16"/></>,
+chart:<><path d="M4 20V4M20 20H4"/><rect x="7" y="12" width="3" height="5" rx="1"/><rect x="12" y="8" width="3" height="9" rx="1"/><rect x="17" y="5" width="3" height="12" rx="1"/></>,
+swap:<><path d="M7 7h11l-3-3M17 17H6l3 3"/></>,
 };
 export const Ico=({n,s=18,w=1.6,...r})=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={w} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...r}>{IP[n]}</svg>;
 
@@ -83,8 +85,10 @@ export const name=p=>{if(!p)return'—';const f=p.first_name??p.profiles?.first_
 export const isFemale=p=>g0(p?.gender)==='female'||['mother','aunt','grandmother','grandparent (f)'].includes(g0(p?.relationship));
 export const genderLabel=g=>g0(g)==='male'?'Male':g0(g)==='female'?'Female':'—';
 export const statusLabel=v=>String(v??'—').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
-export const bracketShort=c=>c&&c.min_age!=null?`${g0(c.gender)==='male'?'B':'G'}${c.min_age}–${c.max_age}`:'';
-export const clsName=c=>c?(c.min_age!=null?`${c.name} · ${g0(c.gender)==='male'?'Boys':'Girls'} ${c.min_age}–${c.max_age}`:c.name):'Unassigned';
+export const bracketShort=c=>c&&c.min_age!=null?`${g0(c.gender)==='male'?'B':'G'}${c.min_age}–${c.max_age}${c&&c.section?c.section:''}`:'';
+// Full display name including the A/B section, e.g. "Boys 9-11 A".
+export const secName=c=>c?`${c.name}${c.section?' '+c.section:''}`:'Unassigned';
+export const clsName=c=>c?(c.min_age!=null?`${secName(c)} · ${g0(c.gender)==='male'?'Boys':'Girls'} ${c.min_age}–${c.max_age}`:secName(c)):'Unassigned';
 export const bracketText=c=>c?(c.dob_from&&c.dob_to?`Ages ${c.min_age}–${c.max_age}, born ${H.fmt(c.dob_from)} – ${H.fmt(c.dob_to)}`:c.min_age!=null?`Ages ${c.min_age}–${c.max_age}`:'—'):'—';
 export const classWhen=c=>c?[c.day_of_week&&`${c.day_of_week}s`,c.start_time&&`${H.time(c.start_time)}–${H.time(c.end_time)}`].filter(Boolean).join(' '):'';
 // Classes with a date-of-birth range match on date of birth; others on whole-year age.
@@ -94,6 +98,11 @@ export const studentLink=s=>s?.class_students?.[0]||null;
 export const studentClass=s=>studentLink(s)?.classes||null;
 export const classTeachers=c=>(c?.class_teachers||[]).map(t=>t.teachers?.profiles).filter(Boolean);
 export const classCount=c=>c?.class_students?.[0]?.count??0;
+
+/* ---------- behaviour ---------- */
+// code, meaning, strike label, badge tone
+export const BEHAVIOUR=[['RFC','Removed from class','Strike 1','warn'],['CWP','Chat with parent','Strike 2','warn'],['CWT','Chat with team','Strike 3','bad'],['E/R','Expelled / Remain','Action','bad']];
+export const behaviourMeta=code=>BEHAVIOUR.find(b=>b[0]===code)||[code,code,'',''];
 
 /* ---------- tones ---------- */
 export const TONE={Active:'good',Inactive:'mute',Archived:'bad',Draft:'',Submitted:'info','Under Review':'gold','Changes Requested':'warn',Approved:'good',Sent:'ink',

@@ -16,11 +16,15 @@ import{Attendance,Register}from'./attendance';
 import{Assessments,Homework}from'./learning';
 import{ReportRequests,Reports}from'./reports';
 import{Files,Notes,Notifications,Settings,Templates}from'./office';
+import{BehaviourPage}from'./behaviour';
+import{Transfer}from'./transfer';
+import{Analytics}from'./analytics';
 import'./huda.css';
 
 const PAGES={dashboard:Dashboard,students:Students,'student-edit':EditStudent,'student-add':()=><FamilyForm mode="student"/>,guardians:Guardians,'guardian-add':()=><FamilyForm mode="guardian"/>,
   staff:Staff,requests:Requests,classes:Classes,subjects:Subjects,attendance:Attendance,register:Register,homework:Homework,assessments:Assessments,bracket:Bracket,
-  reports:Reports,'report-requests':ReportRequests,notes:Notes,templates:Templates,notifications:Notifications,settings:Settings,files:Files};
+  reports:Reports,'report-requests':ReportRequests,notes:Notes,templates:Templates,notifications:Notifications,settings:Settings,files:Files,
+  behaviour:BehaviourPage,transfer:Transfer,analytics:Analytics};
 
 const total=r=>r?.meta?.pagination?.total??(Array.isArray(r?.data)?r.data.length:0);
 
