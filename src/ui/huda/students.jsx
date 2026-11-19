@@ -88,12 +88,12 @@ export function Students(){
         </Listing>
         </div>
       </div>
-      {s&&<Panel key={s.id} onClose={()=>setSel(null)}><StudentPanel s={s} onClose={()=>setSel(null)} onChanged={patch=>all.setData(rs=>rs.map(r=>r.id===s.id?{...r,...patch}:r))}/></Panel>}
+      {s&&<Panel key={s.id} onClose={()=>setSel(null)}><StudentPanel s={s} onClose={()=>setSel(null)} onChanged={patch=>all.setData(rs=>rs.map(r=>r.id===s.id?{...r,...patch}:r))} onRemoved={id=>{all.setData(rs=>rs.filter(r=>r.id!==id));setSel(null)}}/></Panel>}
     </div>
   </div>;
 }
 
-function StudentPanel({s,onClose,onChanged}){
+function StudentPanel({s,onClose,onChanged,onRemoved}){
   const {role,go,confirm,toast}=useUI();const admin=role==='admin';
   const [tab,setTab]=useState('overview');
   const c=studentClass(s);const link=studentLink(s);
@@ -110,6 +110,11 @@ function StudentPanel({s,onClose,onChanged}){
     try{await studentsApi.admin.remove(s.id);onChanged({status:'archived'});toast(`${s.first_name} has been archived`)}catch(e){toast(e.message)}
   };
   const restore=async()=>{try{await studentsApi.admin.update(s.id,{status:'active'});onChanged({status:'active'});toast(`${s.first_name} restored to active`)}catch(e){toast(e.message)}};
+  const purge=async()=>{
+    const ok=await confirm({title:`Permanently delete ${s.first_name}?`,body:`${name(s)} and all their attendance, reports and behaviour records will be deleted for good. This cannot be undone.`,label:'Delete permanently',danger:true});
+    if(!ok)return;
+    try{await studentsApi.purge(s.id);onRemoved?.(s.id);toast(`${s.first_name} permanently deleted`)}catch(e){toast(e.message)}
+  };
   return <>
     <PanelHead onClose={onClose} avatar={<Av p={s} sel size="lg"/>} title={name(s)}
       sub={<>{clsName(c)} · <span className="mono">{s.student_id}</span></>}
@@ -147,7 +152,10 @@ function StudentPanel({s,onClose,onChanged}){
           </div>
         </div>
         {admin&&<><Diamond/>
-          {status==='Archived'?<button className="btn block" onClick={restore}><Ico n="refresh" s={15}/>Restore to active</button>
+          {status==='Archived'?<div className="col" style={{gap:8}}>
+            <button className="btn block" onClick={restore}><Ico n="refresh" s={15}/>Restore to active</button>
+            <button className="btn danger block" onClick={purge}><Ico n="trash" s={15}/>Delete permanently</button>
+          </div>
           :<button className="btn danger block" onClick={remove}><Ico n="archive" s={15}/>Remove from enrolment</button>}
         </>}
       </>}

@@ -387,3 +387,23 @@ input[type=checkbox],input[type=radio]{accent-color:var(--ink);width:16px;height
 .az-avg{font:600 40px/1 var(--display);color:#49b3a4}
 .minibar{height:10px;border-radius:99px;background:#e8e6d6;overflow:hidden;min-width:60px}
 .minibar>i{display:block;height:100%;border-radius:99px}
+
+/* ---- calendar ---- */
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--line2)}
+.cal-wd{padding:9px 10px;font:600 11px var(--sans);color:var(--muted);text-align:left;background:#fbf9ee;border-right:1px solid var(--line2);border-bottom:1px solid var(--line2)}
+.cal-wd:nth-child(7){border-right:0}
+.cal-cell{min-height:104px;padding:6px 7px;border-right:1px solid var(--line2);border-bottom:1px solid var(--line2);display:flex;flex-direction:column;gap:3px;cursor:pointer;background:var(--card);transition:background .12s}
+.cal-cell:nth-child(7n){border-right:0}
+.cal-cell.empty{background:#faf9f1;cursor:default}
+.cal-cell:not(.empty):hover{background:var(--hover)}
+.cal-num{font-size:12.5px;font-weight:600;color:var(--ink2);width:24px;height:24px;display:grid;place-items:center}
+.cal-cell.today .cal-num{background:var(--ink);color:#faf8e9;border-radius:50%}
+.cal-ev{display:block;width:100%;text-align:left;border:0;border-radius:6px;padding:3px 7px;font-size:11.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-more{font-size:10.5px;color:var(--muted);padding-left:4px}
+.cal-dot{width:9px;height:9px;border-radius:3px;display:inline-block}
+.event-class,.cal-dot.event-class{background:#e5f2ee;color:#23634f}
+.event-event,.cal-dot.event-event{background:#e8edf6;color:#3c5d85}
+.event-deadline,.cal-dot.event-deadline{background:#fff0d7;color:#8a5d17}
+.event-holiday,.cal-dot.event-holiday{background:#f2ddd7;color:#7b3a31}
+.cal-dot.event-class{background:#5fae97}.cal-dot.event-event{background:#6f93c6}.cal-dot.event-deadline{background:#d9a53e}.cal-dot.event-holiday{background:#cf8577}
+@media(max-width:700px){.cal-cell{min-height:76px}.cal-ev{font-size:10.5px;padding:2px 5px}}

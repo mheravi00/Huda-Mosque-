@@ -1,0 +1,5 @@
+import{requireAdmin}from'@/server/auth';import{ApiError,assertAllowedFields,jsonBody,noContent,ok,route}from'@/server/http';import{mapDatabaseError}from'@/server/resource-utils';import{ensureEnum,ensureUuid}from'@/server/validators';
+export const PATCH=route(async(r,_:{params:{id:string}})=>{ensureUuid(_.params.id);const c=await requireAdmin(r),b=await jsonBody(r);assertAllowedFields(b,['status']);const{data,error}=await c.supabase.from('feedback').update({status:ensureEnum(b.status,'status',['open','resolved']as const)}).eq('id',_.params.id).select().maybeSingle();mapDatabaseError(error);if(!data)throw new ApiError(404,'NOT_FOUND','Not found.');return ok(data)});
+export const DELETE=route(async(r,_:{params:{id:string}})=>{ensureUuid(_.params.id);const c=await requireAdmin(r);const{data,error}=await c.supabase.from('feedback').delete().eq('id',_.params.id).select();mapDatabaseError(error);if(!data?.length)throw new ApiError(404,'NOT_FOUND','Not found.');return noContent()});
+
+export const dynamic='force-dynamic';

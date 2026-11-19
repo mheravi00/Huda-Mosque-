@@ -112,7 +112,9 @@ export function Register(){
     return{data:[{kids:k.data,marks:a.data}]};
   },[classId,date]);
   const loaded=data.data[0];
-  const kids=useMemo(()=>loaded?loaded.kids.filter(s=>sStatus(s)==='Active'&&(!s.enrolment_date||s.enrolment_date<=date)||loaded.marks.some(m=>m.student_id===s.id)).sort((a,b)=>String(a.first_name).localeCompare(b.first_name)):[],[loaded,date]);
+  // Show every active student in the class (plus anyone already marked), so a newly
+  // added student also appears on past registers and can be back-marked.
+  const kids=useMemo(()=>loaded?loaded.kids.filter(s=>sStatus(s)==='Active'||loaded.marks.some(m=>m.student_id===s.id)).sort((a,b)=>String(a.first_name).localeCompare(b.first_name)):[],[loaded]);
   const init=useMemo(()=>loaded?Object.fromEntries(loaded.marks.map(m=>[m.student_id,m.status])):{},[loaded]);
   const existing=!!loaded&&loaded.marks.length>0;
   const [m,setM]=useState({});useEffect(()=>setM(init),[init]);

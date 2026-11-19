@@ -1,7 +1,7 @@
 'use client';
 // Huda — Guardians, Staff accounts, Teacher requests
 import React,{useEffect,useState}from'react';
-import{classesApi,guardiansApi,teacherRequestsApi,teachersApi}from'../../lib/api/resources';
+import{classesApi,guardiansApi,studentsApi,teacherRequestsApi,teachersApi}from'../../lib/api/resources';
 import{useApiResource}from'../useApiResource';
 import{listAll,useClasses}from'./data';
 import{RELS}from'./student-forms';
@@ -36,13 +36,14 @@ export function Guardians(){
           <Pager page={page} setPage={setPage} total={list.length}/>
         </Listing>
       </div>
-      {g&&<Panel key={g.id} onClose={()=>setSel(null)}><GuardianPanel g={g} onClose={()=>setSel(null)} onSaved={row=>res.setData(rs=>rs.map(r=>r.id===g.id?{...r,...row}:r))}/></Panel>}
+      {g&&<Panel key={g.id} onClose={()=>setSel(null)}><GuardianPanel g={g} onClose={()=>setSel(null)} onSaved={row=>res.setData(rs=>rs.map(r=>r.id===g.id?{...r,...row}:r))} onDeleted={id=>{res.setData(rs=>rs.filter(r=>r.id!==id));setSel(null)}} reloadList={()=>res.refresh().catch(()=>{})}/></Panel>}
     </div>
   </div>;
 }
-function GuardianPanel({g,onClose,onSaved}){
-  const {go,toast}=useUI();
+function GuardianPanel({g,onClose,onSaved,onDeleted,reloadList}){
+  const {go,toast,confirm}=useUI();
   const kids=useApiResource(()=>guardiansApi.children(g.id),[g.id]);
+  const [moveKid,setMoveKid]=useState(null);const [del,setDel]=useState(false);
   const init={first_name:g.first_name||'',last_name:g.last_name||'',relationship:g.relationship||'',phone:g.phone||'',email:g.email||''};
   const [f,setF]=useState(init);const [busy,setBusy]=useState(false);const [err,setErr]=useState('');
   const dirty=JSON.stringify(f)!==JSON.stringify(init);const bad=!f.first_name.trim()||!f.last_name.trim();
@@ -67,12 +68,102 @@ function GuardianPanel({g,onClose,onSaved}){
       </div>
       <Diamond/>
       <div className="p-sec"><div className="row" style={{marginBottom:10}}><span className="lab grow">Children</span><button className="btn sm" onClick={()=>go('student-add',{guardianId:g.id})}><Ico n="plus" s={14}/>Add child</button></div>
-        {kids.loading?<div className="sub">Loading…</div>:<div className="col" style={{gap:8}}>{n===0&&<div className="sub">No children linked yet.</div>}{kids.data.map(s=>{const c=(s.classes||[])[0];return <button key={s.id} className="qtile" onClick={()=>go('students',{id:s.id})}>
-          <span className="idtag">{s.student_id}</span><span className="grow"><span className="nm" style={{display:'block'}}>{name(s)}</span><span className="sub">Age {H.age(s.date_of_birth)??'—'} · {String(s.gender).toLowerCase()==='male'?'Boy':'Girl'} · {c?c.name:'No class'}</span></span><Ico n="chevr" s={15} style={{color:'var(--muted)'}}/>
-        </button>})}</div>}
+        {kids.loading?<div className="sub">Loading…</div>:<div className="col" style={{gap:8}}>{n===0&&<div className="sub">No children linked yet.</div>}{kids.data.map(s=>{const c=(s.classes||[])[0];return <div key={s.id} className="linkrow">
+          <span className="idtag">{s.student_id}</span><button className="grow" style={{textAlign:'left',background:'none',border:0,minWidth:0}} onClick={()=>go('students',{id:s.id})}><span className="nm" style={{display:'block'}}>{name(s)}</span><span className="sub">Age {H.age(s.date_of_birth)??'—'} · {String(s.gender).toLowerCase()==='male'?'Boy':'Girl'} · {c?c.name:'No class'}</span></button>
+          <Menu button={tg=><button className="btn icon sm ghost" onClick={tg} aria-label="Child options"><Ico n="dots" s={16}/></button>}>
+            <button className="mi" onClick={()=>go('students',{id:s.id})}><Ico n="user" s={15}/>Open record</button>
+            <button className="mi" onClick={()=>setMoveKid(s)}><Ico n="swap" s={15}/>Move to another parent</button>
+          </Menu>
+        </div>})}</div>}
+      </div>
+      <Diamond/>
+      <div className="p-sec">
+        <button className="btn danger block" onClick={()=>setDel(true)}><Ico n="trash" s={15}/>Delete parent</button>
       </div>
     </div>
+    {moveKid&&<MoveChildModal child={moveKid} fromGuardian={g} onClose={()=>setMoveKid(null)} onDone={()=>{setMoveKid(null);kids.refresh().catch(()=>{});reloadList?.()}}/>}
+    {del&&<DeleteParentModal g={g} children={kids.data} onClose={()=>setDel(false)} onDeleted={()=>{setDel(false);onDeleted?.(g.id)}}/>}
   </>;
+}
+
+// Move a single child from one parent to another (existing or new).
+function MoveChildModal({child,fromGuardian,onClose,onDone}){
+  const {toast}=useUI();
+  const guardians=useApiResource(()=>listAll(guardiansApi.admin.list,{sort:'name'}),[]);
+  const [mode,setMode]=useState('existing');const [gid,setGid]=useState('');
+  const [p,setP]=useState({first_name:'',last_name:child.last_name||'',relationship:'',phone:'',email:''});
+  const [busy,setBusy]=useState(false);const [err,setErr]=useState('');const [t,setT]=useState(false);
+  const others=guardians.data.filter(x=>x.id!==fromGuardian.id).sort((a,b)=>String(a.last_name).localeCompare(b.last_name));
+  const move=async()=>{
+    setT(true);setErr('');
+    try{
+      let target=gid;
+      if(mode==='new'){if(!p.first_name.trim()||!p.last_name.trim()){setErr('Enter the new parent’s name.');return}const r=await guardiansApi.admin.create(Object.fromEntries(Object.entries({first_name:p.first_name.trim(),last_name:p.last_name.trim(),relationship:p.relationship,phone:p.phone.trim(),email:p.email.trim()}).filter(([,v])=>v)));target=r.data.id}
+      else if(!gid){setErr('Choose a parent.');return}
+      setBusy(true);
+      await studentsApi.linkGuardian(child.id,target);
+      await studentsApi.unlinkGuardian(child.id,fromGuardian.id);
+      toast(`${child.first_name} moved to a new parent`);onDone();
+    }catch(e){setErr(e.message)}finally{setBusy(false)}
+  };
+  return <Modal title={`Move ${name(child)}`} desc={`Move this child from ${name(fromGuardian)} to another parent.`} onClose={onClose}
+    foot={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn pri" disabled={busy} onClick={move}>{busy?'Moving…':'Move child'}</button></>}>
+    <Alert style={{marginBottom:14}}>{err}</Alert>
+    <Seg value={mode} options={[['existing','Existing parent'],['new','New parent']]} onChange={setMode}/>
+    <div style={{marginTop:14}}>
+      {mode==='existing'?<Field label="Choose parent" req error={t&&!gid?'Choose a parent':''}><select className={`sel${t&&!gid?' bad':''}`} value={gid} onChange={e=>setGid(e.target.value)} disabled={guardians.loading}><option value="">{guardians.loading?'Loading…':'Select…'}</option>{others.map(x=><option key={x.id} value={x.id}>{x.last_name}, {x.first_name}{x.relationship?` — ${x.relationship}`:''}</option>)}</select></Field>
+      :<div className="g2">
+        <Field label="First name" req error={t&&!p.first_name.trim()?'Required':''}><input className="inp" value={p.first_name} onChange={e=>setP({...p,first_name:e.target.value})}/></Field>
+        <Field label="Last name" req error={t&&!p.last_name.trim()?'Required':''}><input className="inp" value={p.last_name} onChange={e=>setP({...p,last_name:e.target.value})}/></Field>
+        <Field label="Relationship" span><select className="sel" value={p.relationship} onChange={e=>setP({...p,relationship:e.target.value})}><option value="">Select…</option>{RELS.map(r=><option key={r}>{r}</option>)}</select></Field>
+        <Field label="Phone"><input className="inp" type="tel" value={p.phone} onChange={e=>setP({...p,phone:e.target.value})}/></Field>
+        <Field label="Email"><input className="inp" type="email" value={p.email} onChange={e=>setP({...p,email:e.target.value})}/></Field>
+      </div>}
+    </div>
+  </Modal>;
+}
+
+// Delete a parent, with options for their children.
+function DeleteParentModal({g,children,onClose,onDeleted}){
+  const {toast}=useUI();
+  const hasKids=children.length>0;
+  const guardians=useApiResource(()=>hasKids?listAll(guardiansApi.admin.list,{sort:'name'}):Promise.resolve({data:[]}),[hasKids]);
+  const [mode,setMode]=useState('reassign');const [gid,setGid]=useState('');
+  const [p,setP]=useState({first_name:'',last_name:'',relationship:'',phone:'',email:''});
+  const [busy,setBusy]=useState(false);const [err,setErr]=useState('');
+  const others=guardians.data.filter(x=>x.id!==g.id).sort((a,b)=>String(a.last_name).localeCompare(b.last_name));
+  const run=async()=>{
+    setErr('');setBusy(true);
+    try{
+      if(!hasKids){await guardiansApi.remove(g.id);}
+      else if(mode==='delete'){await guardiansApi.remove(g.id,true);}
+      else{
+        let target=gid;
+        if(mode==='new'){if(!p.first_name.trim()||!p.last_name.trim()){setErr('Enter the new parent’s name.');setBusy(false);return}const r=await guardiansApi.admin.create(Object.fromEntries(Object.entries({first_name:p.first_name.trim(),last_name:p.last_name.trim(),relationship:p.relationship,phone:p.phone.trim(),email:p.email.trim()}).filter(([,v])=>v)));target=r.data.id}
+        else if(!gid){setErr('Choose a parent to reassign the children to.');setBusy(false);return}
+        for(const kid of children)await studentsApi.linkGuardian(kid.id,target);
+        await guardiansApi.remove(g.id);
+      }
+      toast(`${name(g)} deleted`);onDeleted();
+    }catch(e){setErr(e.message)}finally{setBusy(false)}
+  };
+  return <Modal title={`Delete ${name(g)}?`} desc={hasKids?`This parent has ${children.length} ${children.length===1?'child':'children'}. Choose what happens to them.`:'This parent has no children linked.'} onClose={onClose}
+    foot={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn danger solid" disabled={busy} onClick={run}>{busy?'Working…':'Delete parent'}</button></>}>
+    <Alert style={{marginBottom:14}}>{err}</Alert>
+    {hasKids&&<div className="col" style={{gap:12}}>
+      <label className="check"><input type="radio" name="dp" checked={mode==='reassign'} onChange={()=>setMode('reassign')}/><span><b style={{fontWeight:500}}>Keep the children, move to an existing parent</b></span></label>
+      {mode==='reassign'&&<Field label="Choose parent"><select className="sel" value={gid} onChange={e=>setGid(e.target.value)} disabled={guardians.loading}><option value="">{guardians.loading?'Loading…':'Select…'}</option>{others.map(x=><option key={x.id} value={x.id}>{x.last_name}, {x.first_name}{x.relationship?` — ${x.relationship}`:''}</option>)}</select></Field>}
+      <label className="check"><input type="radio" name="dp" checked={mode==='new'} onChange={()=>setMode('new')}/><span><b style={{fontWeight:500}}>Keep the children, create a new parent</b></span></label>
+      {mode==='new'&&<div className="g2">
+        <Field label="First name" req><input className="inp" value={p.first_name} onChange={e=>setP({...p,first_name:e.target.value})}/></Field>
+        <Field label="Last name" req><input className="inp" value={p.last_name} onChange={e=>setP({...p,last_name:e.target.value})}/></Field>
+        <Field label="Relationship" span><select className="sel" value={p.relationship} onChange={e=>setP({...p,relationship:e.target.value})}><option value="">Select…</option>{RELS.map(r=><option key={r}>{r}</option>)}</select></Field>
+        <Field label="Phone"><input className="inp" type="tel" value={p.phone} onChange={e=>setP({...p,phone:e.target.value})}/></Field>
+        <Field label="Email"><input className="inp" type="email" value={p.email} onChange={e=>setP({...p,email:e.target.value})}/></Field>
+      </div>}
+      <label className="check"><input type="radio" name="dp" checked={mode==='delete'} onChange={()=>setMode('delete')}/><span><b style={{fontWeight:500,color:'var(--bad)'}}>Delete the children too</b><span className="hint" style={{display:'block'}}>Their records are archived to the recycling bin, not erased.</span></span></label>
+    </div>}
+  </Modal>;
 }
 
 /* ---------- Staff ---------- */

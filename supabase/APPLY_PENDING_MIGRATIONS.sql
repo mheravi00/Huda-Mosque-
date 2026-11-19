@@ -1,95 +1,87 @@
 -- ============================================================
--- Huda Portal — pending database changes.
+-- Huda Portal — pending database change (run after the earlier ones).
 -- Paste this whole file into the Supabase SQL Editor and Run.
--- Safe to run more than once (idempotent).
+-- Safe to run more than once.
+-- Reverts the A/B class split, adds Feedback and class Topics/Syllabus.
 -- ============================================================
 
--- ---- Batch 1: design refresh (20261111000000) ----
--- Support for the redesigned portal.
+-- Revert A/B class sections back to one class per bracket, add feedback and class syllabus.
 
--- Admins leave a note for the teacher when they send a report back.
-alter table public.student_reports add column if not exists review_note text;
+-- 1) Revert A/B sections ----------------------------------------------------
+do $$
+declare r record;
+begin
+  for r in select * from public.classes where section = 'B' loop
+    -- Move B students into the matching A class (skip any already in A).
+    update public.class_students cs
+      set class_id = a.id
+      from public.classes a
+      where a.gender = r.gender and a.min_age = r.min_age and a.max_age = r.max_age and coalesce(a.section,'A') = 'A'
+        and cs.class_id = r.id
+        and not exists (select 1 from public.class_students x where x.class_id = a.id and x.student_id = cs.student_id);
+    -- Drop any leftover B memberships + teachers.
+    delete from public.class_students where class_id = r.id;
+    delete from public.class_teachers where class_id = r.id;
+    -- Delete the empty B class only when nothing else references it; otherwise just hide it.
+    if not exists (select 1 from public.attendance where class_id = r.id)
+       and not exists (select 1 from public.homework where class_id = r.id)
+       and not exists (select 1 from public.assessments where class_id = r.id)
+       and not exists (select 1 from public.student_reports where class_id = r.id)
+       and not exists (select 1 from public.report_requests where class_id = r.id) then
+      delete from public.classes where id = r.id;
+    else
+      update public.classes set active = false where id = r.id;
+    end if;
+  end loop;
+  -- Flatten the remaining classes back to a single, section-less class per bracket.
+  update public.classes set section = null;
+end $$;
 
--- Assessments are now created for a whole class; per-student scores live in
--- assessment_results. The legacy per-row student_id becomes optional.
-alter table public.assessments alter column student_id drop not null;
-
--- ---- Batch 2: behaviour, A/B sections, admin notes (20261112000000) ----
--- Behaviour logs, A/B class sections, admin notes, and student transfers.
-
--- 1) Behaviour log ---------------------------------------------------------
-create table if not exists public.behaviour_logs (
+-- 2) Feedback --------------------------------------------------------------
+create table if not exists public.feedback (
   id uuid primary key default gen_random_uuid(),
-  student_id uuid not null references public.students(id) on delete cascade,
-  class_id uuid references public.classes(id) on delete set null,
-  incident_date date not null default current_date,
-  code text not null check (code in ('RFC', 'CWP', 'CWT', 'E/R')),
-  reason text not null,
-  comment text,
-  flagged boolean not null default false,
+  name text not null,
+  phone text,
+  problem text not null,
+  details text,
+  status text not null default 'open' check (status in ('open', 'resolved')),
+  created_by uuid references public.profiles(id),
+  created_at timestamptz not null default now()
+);
+alter table public.feedback enable row level security;
+drop policy if exists feedback_admin_all on public.feedback;
+create policy feedback_admin_all on public.feedback for all to authenticated using (public.is_admin()) with check (public.is_admin());
+drop policy if exists feedback_insert on public.feedback;
+create policy feedback_insert on public.feedback for insert to authenticated with check (created_by = public.current_profile_id());
+drop policy if exists feedback_own_select on public.feedback;
+create policy feedback_own_select on public.feedback for select to authenticated using (created_by = public.current_profile_id());
+grant select, insert, update, delete on public.feedback to authenticated;
+
+-- 3) Class syllabus / curriculum -------------------------------------------
+create table if not exists public.class_curriculum (
+  id uuid primary key default gen_random_uuid(),
+  class_id uuid not null references public.classes(id) on delete cascade,
+  academic_year text,
+  term text,
+  topic text not null,
+  currently_studying boolean not null default true,
+  learning_points text,
+  current_reading text,
+  teacher_name text,
+  start_date date,
+  end_date date,
+  notes text,
   created_by uuid references public.profiles(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-create index if not exists behaviour_logs_student_idx on public.behaviour_logs (student_id, incident_date desc);
-
-alter table public.behaviour_logs enable row level security;
-
-do $$
-begin
-  if not exists (select 1 from pg_policies where schemaname='public' and tablename='behaviour_logs' and policyname='behaviour_admin_all') then
-    create policy behaviour_admin_all on public.behaviour_logs for all to authenticated
-      using (public.is_admin()) with check (public.is_admin());
-  end if;
-  if not exists (select 1 from pg_policies where schemaname='public' and tablename='behaviour_logs' and policyname='behaviour_teacher_all') then
-    create policy behaviour_teacher_all on public.behaviour_logs for all to authenticated
-      using (public.is_teacher_for_student(student_id))
-      with check (public.is_teacher_for_student(student_id));
-  end if;
-end $$;
-
-drop trigger if exists behaviour_logs_updated_at on public.behaviour_logs;
-create trigger behaviour_logs_updated_at before update on public.behaviour_logs for each row execute function public.set_updated_at();
-
-grant select, insert, update, delete on public.behaviour_logs to authenticated;
-
--- 2) Admin notes -----------------------------------------------------------
--- Admins have no teachers row, so allow notes with a null teacher_id.
--- The notes_admin_all RLS policy already lets admins read/write every note.
-alter table public.student_notes alter column teacher_id drop not null;
-
--- 3) A/B class sections ----------------------------------------------------
-alter table public.classes add column if not exists section text;
-
--- The old bracket uniqueness blocks a second class per bracket; allow one per section.
-alter table public.classes drop constraint if exists classes_bracket_unique;
-drop index if exists classes_bracket_section_unique;
-create unique index classes_bracket_section_unique
-  on public.classes (gender, min_age, max_age, coalesce(section, ''));
-
--- Give every existing class section 'A' and create an empty 'B' twin.
-do $$
-declare r record;
-begin
-  update public.classes set section = 'A' where section is null;
-  for r in select * from public.classes where section = 'A' loop
-    if not exists (
-      select 1 from public.classes b
-      where b.gender = r.gender and b.min_age = r.min_age and b.max_age = r.max_age and b.section = 'B'
-    ) then
-      insert into public.classes (name, academic_year, term, subject_id, room_location, day_of_week, start_time, end_time, active, gender, min_age, max_age, dob_from, dob_to, section)
-      values (r.name, r.academic_year, r.term, r.subject_id, r.room_location, r.day_of_week, r.start_time, r.end_time, r.active, r.gender, r.min_age, r.max_age, r.dob_from, r.dob_to, 'B');
-    end if;
-  end loop;
-end $$;
-
--- 4) Teacher transfers -----------------------------------------------------
--- Let a teacher move a student from a class they teach to another class they teach.
-do $$
-begin
-  if not exists (select 1 from pg_policies where schemaname='public' and tablename='class_students' and policyname='class_students_teacher_update') then
-    create policy class_students_teacher_update on public.class_students for update to authenticated
-      using (public.is_teacher_for_class(class_id))
-      with check (public.is_teacher_for_class(class_id));
-  end if;
-end $$;
+create index if not exists class_curriculum_class_idx on public.class_curriculum (class_id, created_at);
+alter table public.class_curriculum enable row level security;
+drop policy if exists curriculum_admin_all on public.class_curriculum;
+create policy curriculum_admin_all on public.class_curriculum for all to authenticated using (public.is_admin()) with check (public.is_admin());
+drop policy if exists curriculum_teacher_all on public.class_curriculum;
+create policy curriculum_teacher_all on public.class_curriculum for all to authenticated
+  using (public.is_teacher_for_class(class_id)) with check (public.is_teacher_for_class(class_id));
+drop trigger if exists class_curriculum_updated_at on public.class_curriculum;
+create trigger class_curriculum_updated_at before update on public.class_curriculum for each row execute function public.set_updated_at();
+grant select, insert, update, delete on public.class_curriculum to authenticated;

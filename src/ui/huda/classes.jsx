@@ -6,6 +6,7 @@ import{listAllAttendanceRows}from'../attendance-register';
 import{useApiResource}from'../useApiResource';
 import{listAll,sStatus,useClasses}from'./data';
 import{Alert,Av,Badge,ClassPill,DAYS,Empty,Field,H,Ico,Listing,Loading,PageHead,Panel,PanelHead,Sw,Tabs,bracketText,classCount,classFor,classTeachers,classWhen,clsName,name,today,useUI}from'./ui';
+import{SyllabusTab}from'./syllabus';
 
 export function Classes(){
   const {role,toast,params}=useUI();const admin=role==='admin';
@@ -52,7 +53,7 @@ function ClassPanel({c,onClose,onSaved,reload}){
   const teacherAct=async(fn,msg)=>{setErr('');try{await fn();toast(msg);reload()}catch(e){setErr(e.message)}};
   return <>
     <PanelHead onClose={onClose} avatar={<span className="av lg g" style={{fontSize:15}}>{String(c.gender).toLowerCase()==='male'?'B':'G'}{c.min_age??''}</span>} title={c.name} sub={[`${String(c.gender).toLowerCase()==='male'?'Boys':'Girls'}${c.min_age!=null?` ${c.min_age}–${c.max_age}`:''}`,classWhen(c)].filter(Boolean).join(' · ')}/>
-    <Tabs value={tab} onChange={setTab} tabs={[['details','Details'],['registers','Registers',att.loading?null:regs.length],['students','Students',kids.loading?null:ks.length],...(admin?[['teachers','Teachers',tIds.length]]:[])]}/>
+    <Tabs value={tab} onChange={setTab} tabs={[['details','Details'],['registers','Registers',att.loading?null:regs.length],['students','Students',kids.loading?null:ks.length],...(admin?[['teachers','Teachers',tIds.length]]:[]),['topics','Topics & Learning']]}/>
     <div className="p-b">
       <Alert style={{marginBottom:14}}>{err}</Alert>
       {tab==='details'&&(admin?<>
@@ -85,6 +86,7 @@ function ClassPanel({c,onClose,onSaved,reload}){
         <div className="col" style={{gap:8}}>{tIds.length===0&&<div className="alert warn"><Ico n="alert" s={16}/>No teacher assigned to this class.</div>}{(c.class_teachers||[]).map(t=>{const p=t.teachers?.profiles;const row=staff.data.find(u=>u.id===t.teacher_id);return <div key={t.teacher_id} className="linkrow"><Av p={p} tone="ink" size="sm"/><div className="grow"><div style={{fontWeight:500}}>{p?name(p):'Teacher'}</div><div className="sub">{row?.qualification||''}</div></div><button className="btn sm ghost" onClick={()=>teacherAct(()=>classesApi.removeTeacher(c.id,t.teacher_id),'Teacher removed')}>Remove</button></div>})}</div>
         <div className="row" style={{marginTop:10}}><select className="sel grow" value={pick} onChange={e=>setPick(e.target.value)} aria-label="Assign teacher" disabled={staff.loading}><option value="">{staff.loading?'Loading teachers…':'Assign a teacher…'}</option>{avail.map(u=><option key={u.id} value={u.id}>{name(u.profiles)}</option>)}</select><button className="btn" disabled={!pick} onClick={()=>{const id=pick;setPick('');teacherAct(()=>classesApi.assignTeacher(c.id,id),'Teacher assigned')}}>Assign</button></div>
       </>}
+      {tab==='topics'&&<SyllabusTab c={c}/>}
     </div>
   </>;
 }
