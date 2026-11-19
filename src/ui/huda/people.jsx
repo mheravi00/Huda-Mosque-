@@ -5,7 +5,7 @@ import{classesApi,guardiansApi,studentsApi,teacherRequestsApi,teachersApi}from'.
 import{useApiResource}from'../useApiResource';
 import{listAll,useClasses}from'./data';
 import{RELS}from'./student-forms';
-import{Alert,Av,Badge,Chips,Diamond,Empty,Field,H,Ico,Listing,Loading,PageHead,Pager,Panel,PanelHead,SearchBox,Seg,Sw,classWhen,clsName,name,today,useUI}from'./ui';
+import{Alert,Av,Badge,Chips,Diamond,Empty,Field,H,Ico,Listing,Loading,Menu,Modal,PageHead,Pager,Panel,PanelHead,SearchBox,Seg,Sw,classWhen,clsName,name,today,useUI}from'./ui';
 
 /* ---------- Guardians ---------- */
 const kidsOf=g=>(g.student_guardians||[]).map(x=>x.students).filter(Boolean);
